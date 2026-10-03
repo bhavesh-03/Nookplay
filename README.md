@@ -15,8 +15,10 @@ Players can join through a public deployment URL from any network. No Supabase k
 1. The host creates a room and shares its code or invite link. The host does not occupy a player slot. Players join with a name, without an account.
 2. The host edits role names, teams, abilities, and quantities, then assigns each player's role manually or shuffles assignments.
 3. The host presses **Reveal roles to players**. Each connected player receives their own private card within about two seconds, with no refresh. A press and hold displays the card.
-4. For this first version, the host coordinates night actions and votes outside the app. The host selects the eliminated player or no elimination. The app immediately marks the player out and announces whether their assigned role was Mafia.
-5. The app checks for Town victory when no Mafia remain and Mafia victory when living Mafia equal or outnumber living Town.
+4. For this first version, the host coordinates night actions and votes outside the app. The host selects one or more eliminated players, or leaves everyone unselected for no elimination. The app marks them all out together and announces whether each was Mafia. The host's room list shows each player's role and alive/out status; player views keep other roles private.
+5. After the vote result, the host presses **Start round 2 · Night** (or the corresponding next round). The app increases the round number and begins a new night. The game checks for Town victory when no Mafia remain and Mafia victory when living Mafia equal or outnumber living Town.
+
+The host session is saved in this browser. Refreshing or accidentally closing the tab resumes it automatically. **Back to home** shows a **Resume hosting** button. Recovery depends on keeping this browser's local storage; clearing browser data or switching devices loses host access, so the host should use the same browser throughout a game.
 
 Updates use a two-second poll of the shared Supabase state. Redis and Supabase Realtime are not required for this first version.
 

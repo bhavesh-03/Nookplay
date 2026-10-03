@@ -39,4 +39,32 @@ test("room state survives serialization without storing raw access tokens", () =
   assert.equal(playerView.viewer.name, "Player");
   assert.equal(playerView.viewer.host, false);
   assert.equal(playerView.players.length, 1);
+  const restoredHost = runWithState(structuredClone(joined.state), () => getRoomView(joined.result.code, created.result.token)).result;
+  assert.equal(restoredHost.viewer.host, true);
+});
+
+test("host can eliminate several players and explicitly start round two", () => {
+  const host = createRoom("Host", 6);
+  for (const name of ["A", "B", "C", "D", "E", "F"]) joinRoom(host.code, name);
+  const players = getRoomView(host.code, host.token).players;
+  ["mafia", "town", "town", "town", "town", "detective"].forEach((roleId, index) => {
+    changeRoom(host.code, host.token, { action: "assign", playerId: players[index].id, roleId });
+  });
+  changeRoom(host.code, host.token, { action: "reveal" });
+  changeRoom(host.code, host.token, { action: "advance" });
+  assert.throws(() => changeRoom(host.code, host.token, { action: "resolve", kind: "night", playerIds: [players[1].id, players[1].id] }), /each eliminated player once/);
+  const morning = changeRoom(host.code, host.token, { action: "resolve", kind: "night", playerIds: [players[1].id, players[2].id] });
+  assert.equal(morning.phase, "morning");
+  assert.deepEqual(morning.announcement.eliminations.map(item => item.playerName), ["B", "C"]);
+  assert.equal(morning.players.filter(player => !player.alive).length, 2);
+  assert.throws(() => changeRoom(host.code, host.token, { action: "resolve", kind: "night", playerIds: [players[1].id] }), /current phase/);
+  changeRoom(host.code, host.token, { action: "advance" });
+  changeRoom(host.code, host.token, { action: "advance" });
+  const result = changeRoom(host.code, host.token, { action: "resolve", kind: "vote", playerIds: [] });
+  assert.equal(result.phase, "result");
+  assert.equal(result.announcement.noElimination, true);
+  const secondRound = changeRoom(host.code, host.token, { action: "advance" });
+  assert.equal(secondRound.round, 2);
+  assert.equal(secondRound.phase, "night");
+  assert.equal(secondRound.announcement, null);
 });

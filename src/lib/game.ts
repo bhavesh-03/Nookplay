@@ -5,7 +5,8 @@ export type Ability = "night_vote" | "inspect" | "protect" | "none";
 export type Phase = "lobby" | "reveal" | "night" | "morning" | "discussion" | "voting" | "result" | "game_over";
 export type Role = { id: string; name: string; team: Team; ability: Ability; count: number };
 export type Player = { id: string; name: string; roleId: string | null; alive: boolean };
-export type Announcement = { playerId: string | null; playerName: string | null; wasMafia: boolean | null; kind: "night" | "vote"; noElimination: boolean };
+export type Elimination = { playerId: string; playerName: string; wasMafia: boolean };
+export type Announcement = { playerId: string | null; playerName: string | null; wasMafia: boolean | null; eliminations?: Elimination[]; kind: "night" | "vote"; noElimination: boolean };
 export type Room = { code: string; hostName: string; capacity: number; phase: Phase; round: number; players: Player[]; roles: Role[]; announcement: Announcement | null; winner: Team | null; revision: number; createdAt: number };
 type Credential = { code: string; playerId: string | null; host: boolean };
 type GameStore = { rooms: Map<string, Room>; credentials: Map<string, Credential> };
@@ -87,7 +88,7 @@ export function joinRoom(codeValue: unknown, nameValue: unknown) {
 function access(code: string, credentialValue: string | null) {
   const credential = credentialValue ? store.credentials.get(tokenHash(credentialValue)) : null;
   const room = store.rooms.get(code.toUpperCase());
-  if (!room) fail("Room not found. It may have reset when the server restarted.", 404);
+  if (!room) fail("Room not found. Check the code and try again.", 404);
   if (!credential || credential.code !== room.code) fail("Your room session is missing. Rejoin the room.", 401);
   return { room, credential };
 }
@@ -162,14 +163,21 @@ export function changeRoom(code: string, credentialValue: string | null, input: 
     const kind = input.kind;
     if ((kind === "night" && room.phase !== "night") || (kind === "vote" && room.phase !== "voting")) fail("This result does not match the current phase.", 409);
     if (kind !== "night" && kind !== "vote") fail("Choose a night or vote result.");
-    const playerId = input.playerId === null ? null : String(input.playerId ?? "");
-    const player = playerId ? room.players.find(item => item.id === playerId && item.alive) : null;
-    if (playerId && !player) fail("Choose a living player.", 404);
-    if (player) player.alive = false;
-    const role = player ? room.roles.find(item => item.id === player.roleId) : null;
-    room.announcement = { playerId: player?.id ?? null, playerName: player?.name ?? null, wasMafia: role ? role.team === "Mafia" : null, kind, noElimination: !player };
+    const playerIds = input.playerIds === undefined
+      ? (input.playerId ? [input.playerId] : [])
+      : input.playerIds;
+    if (!Array.isArray(playerIds) || playerIds.length > room.players.length || playerIds.some(id => typeof id !== "string") || new Set(playerIds).size !== playerIds.length) fail("Choose each eliminated player once.");
+    const players = playerIds.map(id => room.players.find(item => item.id === id && item.alive));
+    if (players.some(player => !player)) fail("Choose living players only.", 404);
+    const eliminations = players.map(player => {
+      const role = room.roles.find(item => item.id === player!.roleId);
+      return { playerId: player!.id, playerName: player!.name, wasMafia: role?.team === "Mafia" };
+    });
+    players.forEach(player => { player!.alive = false; });
+    const first = eliminations[0];
+    room.announcement = { playerId: first?.playerId ?? null, playerName: first?.playerName ?? null, wasMafia: first?.wasMafia ?? null, eliminations, kind, noElimination: !eliminations.length };
     room.phase = kind === "night" ? "morning" : "result";
-    if (player) checkWinner(room);
+    if (eliminations.length) checkWinner(room);
   } else if (action === "end") {
     if (room.phase === "lobby") fail("The game has not started.", 409);
     room.phase = "game_over";
