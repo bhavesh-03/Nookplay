@@ -83,18 +83,20 @@ Never prefix secret values with `NEXT_PUBLIC_`, commit `.env.local`, or paste cr
 
 The bug form is at `/report`. Delivery is disabled until all SMTP variables above are configured; the page then points reporters to GitHub Issues.
 
-[Resend](https://resend.com/pricing) offers a free SMTP plan. Create an account, verify a sending domain, and create an API key. [Resend's SMTP settings](https://resend.com/changelog/smtp-service) are `smtp.resend.com`, port `465`, username `resend`, and the API key as the password. Set `SMTP_FROM` to an address on your verified domain and `BUG_REPORT_TO` to your inbox. Add the same variables to Vercel's **Production** environment and redeploy. Keep the key server-side.
+For a personal Gmail inbox, turn on [2-Step Verification and create a Google app password](https://support.google.com/accounts/answer/185833). Use the app password for `SMTP_PASSWORD`, never your normal Google password. A personal Gmail account can send to the same inbox:
 
 ```env
-SMTP_HOST=smtp.resend.com
+SMTP_HOST=smtp.gmail.com
 SMTP_PORT=465
-SMTP_USER=resend
-SMTP_PASSWORD=re_your_api_key
-SMTP_FROM="Nookplay <bugs@your-verified-domain.com>"
-BUG_REPORT_TO=you@example.com
+SMTP_USER=your-address@gmail.com
+SMTP_PASSWORD=your_16_character_app_password
+SMTP_FROM="Nookplay <your-address@gmail.com>"
+BUG_REPORT_TO=your-address@gmail.com
 ```
 
-The transport is standard SMTP, so another provider can be used by changing these variables. The reporter's optional email is used as `Reply-To`; it is never used as the sender. Test delivery by submitting a report from `/report` and checking the destination inbox. The server validates lengths, rejects cross-origin posts, uses a hidden spam trap, and applies a small per-instance throttle. For a higher-traffic public deployment, add a shared rate limiter or bot challenge.
+If you have a verified sending domain, [Resend's free SMTP plan](https://resend.com/pricing) is another option: `smtp.resend.com`, port `465`, username `resend`, API key as password, and a sender address on that domain. Add the chosen variables to Vercel's **Production** environment and redeploy. Keep the key server-side.
+
+The reporter's optional email is used as `Reply-To`; it is never used as the sender. Test delivery by submitting a report from `/report` and checking the destination inbox. The server validates lengths, rejects cross-origin posts, uses a hidden spam trap, and applies a small per-instance throttle. For a higher-traffic public deployment, add a shared rate limiter or bot challenge.
 
 ## Project layout
 
