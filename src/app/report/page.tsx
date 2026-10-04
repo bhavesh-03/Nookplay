@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 const issuesUrl = "https://github.com/bhavesh-03/Nookplay/issues/new?template=bug_report.yml";
+const formId = process.env.NEXT_PUBLIC_FORMSPREE_FORM_ID;
 
 export default function ReportPage() {
   const [title, setTitle] = useState("");
@@ -22,10 +23,14 @@ export default function ReportPage() {
     event.preventDefault();
     setBusy(true); setError("");
     try {
-      const response = await fetch("/api/report", { method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ title, email, description, steps, website }) });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Could not send the report.");
+      if (!formId || !/^[a-zA-Z0-9]+$/.test(formId)) throw new Error("Bug reporting is being set up. Please use GitHub Issues for now.");
+      const response = await fetch(`https://formspree.io/f/${formId}`, {
+        method: "POST",
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify({ _subject: `[Nookplay bug] ${title}`, title, message: description, "Steps to repeat": steps, email, _gotcha: website })
+      });
+      if (response.status === 429) throw new Error("Too many reports were sent just now. Please wait and try again.");
+      if (!response.ok) throw new Error("The report could not be sent. Please try again or use GitHub Issues.");
       setSent(true);
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not send the report."); }
     finally { setBusy(false); }

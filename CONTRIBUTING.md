@@ -6,7 +6,7 @@ Thanks for helping make in-person games easier to host. Small fixes and well-def
 
 - Search [existing issues](https://github.com/bhavesh-03/Nookplay/issues) before opening a new one.
 - For a new game or a change to Mafia rules, open an issue first so the rules and host flow can be discussed.
-- Never post `.env.local`, room access tokens, secret roles from a live game, or SMTP credentials.
+- Never post `.env.local`, room access tokens, or secret roles from a live game.
 
 ## Development workflow
 

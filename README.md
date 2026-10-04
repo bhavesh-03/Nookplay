@@ -24,7 +24,7 @@ Nookplay currently supports **Mafia**. It uses a dark, neo-brutalist interface d
 - **Host controls:** player limits, phase timers, pause/resume/extend, reveal policy, tie rule, spectator joining, play again, and room deletion.
 - **Return safely:** names are shown in capitals. Players can continue from a saved browser or request host-approved recovery using their room code and name. The host can reopen an accidentally closed room from the same browser.
 - **Short-lived rooms:** access ends 24 hours after creation. An optional Supabase Cron migration removes expired rows from storage.
-- **Bug reports:** an in-app form can email reports through a server-side SMTP account; GitHub Issues remains available.
+- **Bug reports:** an in-app Formspree form sends reports to the maintainer; GitHub Issues remains available.
 
 ## How a round works
 
@@ -70,33 +70,24 @@ Open [localhost:3000](http://localhost:3000). To simulate several players, use s
 | --- | --- |
 | `SUPABASE_URL` | Supabase project URL, ending in `.supabase.co`. |
 | `SUPABASE_SECRET_KEY` | Server-only secret key. A legacy `SUPABASE_SERVICE_ROLE_KEY` also works. |
-| `SMTP_HOST` | SMTP server for bug reports. |
-| `SMTP_PORT` | SMTP port; `465` uses TLS from connection start. |
-| `SMTP_USER` | SMTP login. |
-| `SMTP_PASSWORD` | SMTP password or provider API key. |
-| `SMTP_FROM` | Sender address accepted by the provider. |
-| `BUG_REPORT_TO` | Private destination for bug reports. |
+| `NEXT_PUBLIC_FORMSPREE_FORM_ID` | Public Formspree form ID for bug reports. |
 
-Never prefix secret values with `NEXT_PUBLIC_`, commit `.env.local`, or paste credentials into an issue.
+Never prefix secret values with `NEXT_PUBLIC_`, commit `.env.local`, or paste credentials into an issue. The Formspree form ID is public and safe to use with that prefix.
 
-## Set up free SMTP for bug reports
+## Set up bug reports with Formspree
 
-The bug form is at `/report`. Delivery is disabled until all SMTP variables above are configured; the page then points reporters to GitHub Issues.
+The bug form is at `/report`. [Formspree](https://formspree.io/) handles submissions and email notifications, so no SMTP password or mail server is needed. [Its Free plan starts at 50 submissions per month](https://help.formspree.io/articles/account-management/account-limits).
 
-For a personal Gmail inbox, turn on [2-Step Verification and create a Google app password](https://support.google.com/accounts/answer/185833). Use the app password for `SMTP_PASSWORD`, never your normal Google password. A personal Gmail account can send to the same inbox:
+1. Create a form in the Formspree dashboard and set its notification email to the inbox that should receive bug reports.
+2. Copy the form endpoint, such as `https://formspree.io/f/abcdefgh`, and put its final ID in `.env.local`:
 
-```env
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=465
-SMTP_USER=your-address@gmail.com
-SMTP_PASSWORD=your_16_character_app_password
-SMTP_FROM="Nookplay <your-address@gmail.com>"
-BUG_REPORT_TO=your-address@gmail.com
-```
+   ```env
+   NEXT_PUBLIC_FORMSPREE_FORM_ID=abcdefgh
+   ```
 
-If you have a verified sending domain, [Resend's free SMTP plan](https://resend.com/pricing) is another option: `smtp.resend.com`, port `465`, username `resend`, API key as password, and a sender address on that domain. Add the chosen variables to Vercel's **Production** environment and redeploy. Keep the key server-side.
+3. Add the same variable to Vercel's **Production** environment and redeploy. Submit one report from `/report` and check both Formspree's submissions and your inbox. Formspree may ask you to confirm the notification address.
 
-The reporter's optional email is used as `Reply-To`; it is never used as the sender. Test delivery by submitting a report from `/report` and checking the destination inbox. The server validates lengths, rejects cross-origin posts, uses a hidden spam trap, and applies a small per-instance throttle. For a higher-traffic public deployment, add a shared rate limiter or bot challenge.
+The form sends title, description, optional steps and reply email, and a hidden spam field. It shows rate limit and delivery errors, with GitHub Issues as a fallback. Without a configured form ID, no submission is attempted. Avoid putting private game information in reports.
 
 ## Project layout
 
@@ -106,7 +97,7 @@ The reporter's optional email is used as `Reply-To`; it is never used as the sen
 | `src/lib/game.ts` | Mafia roles, room state, phase transitions, privacy, and win rules. |
 | `src/lib/room-repository.ts` | Supabase persistence and revision checks. |
 | `src/app/api/rooms/` | Room API routes. |
-| `src/app/report/` and `src/app/api/report/` | Bug report form and SMTP delivery. |
+| `src/app/report/` | Bug report form and Formspree submission. |
 | `supabase/migrations/` | Database schema and expiry cleanup. |
 | `tests/game.test.mjs` | Rule and privacy tests. |
 
@@ -132,7 +123,7 @@ npm run build
 
 ## Deployment
 
-The app deploys to Vercel with the Supabase variables set for Production. Apply the database migrations before relying on scheduled cleanup. The SMTP variables are optional for running the game, but required for sending bug reports. No Redis service is needed.
+The app deploys to Vercel with the Supabase variables set for Production. Apply the database migrations before relying on scheduled cleanup. The Formspree form ID is optional for running the game, but required for sending bug reports. No Redis service is needed.
 
 ## License
 
