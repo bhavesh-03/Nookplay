@@ -7,7 +7,9 @@
     "build": "next build --webpack",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test:game": "node --experimental-strip-types --test tests/game.test.mjs"
+    "test": "npm run test:game && npm run test:report",
+    "test:game": "node --experimental-strip-types --test tests/game.test.mjs",
+    "test:report": "node --experimental-strip-types --test tests/report.test.mjs"
   },
   "dependencies": {
     "@radix-ui/react-slot": "1.2.2",
@@ -15,12 +17,14 @@
     "clsx": "2.1.1",
     "lucide-react": "0.546.0",
     "next": "16.3.8",
+    "nodemailer": "^10.0.14",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "tailwind-merge": "2.6.0"
   },
   "devDependencies": {
     "@types/node": "22.10.2",
+    "@types/nodemailer": "^8.0.2",
     "@types/react": "19.0.2",
     "@types/react-dom": "19.0.2",
     "postcss": "8.5.28",

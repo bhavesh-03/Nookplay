@@ -1,0 +1,38 @@
+name: New game proposal
+description: Propose another in-person game for Nookplay.
+title: "Game proposal: "
+body:
+  - type: input
+    id: game
+    attributes:
+      label: Game name
+    validations:
+      required: true
+  - type: textarea
+    id: setup
+    attributes:
+      label: Players and setup
+      description: Player count, host role, teams, and default roles.
+    validations:
+      required: true
+  - type: textarea
+    id: flow
+    attributes:
+      label: Round flow
+      description: What happens in person, what the host controls, and what players see on their phones.
+    validations:
+      required: true
+  - type: textarea
+    id: secrets
+    attributes:
+      label: Private information and reveals
+      description: Who can see which facts, and when?
+    validations:
+      required: true
+  - type: textarea
+    id: win
+    attributes:
+      label: End of game
+      description: Eliminations, ties, win conditions, and replay.
+    validations:
+      required: true

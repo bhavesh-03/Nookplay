@@ -1,0 +1,32 @@
+name: Bug report
+description: Tell us what went wrong in Nookplay.
+title: "Bug: "
+body:
+  - type: markdown
+    attributes:
+      value: "Please do not include room tokens, passwords, or secret roles from a live game."
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the problem clearly.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. Create a room…"
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Browser and device
+      placeholder: "Chrome on Android, Safari on iPhone, etc."
