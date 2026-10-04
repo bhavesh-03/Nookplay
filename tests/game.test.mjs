@@ -161,3 +161,32 @@ test("automatic timers move discussion to voting and tied device vote can revote
   assert.equal(tied.voteRound, 2);
   assert.equal(tied.tieNotice, true);
 });
+
+test("host can undo the latest night or vote outcome, including a win", () => {
+  const { host, players } = setup(["Alice", "Bob", "Cara", "Dan", "Eve"]);
+  act(host, "advance");
+  const morning = act(host, "resolve", { kind: "night", playerIds: [players[1].id] });
+  assert.equal(morning.players.find(player => player.id === players[1].id).alive, false);
+  assert.ok(morning.hostState.undoUntil > Date.now());
+  const restoredNight = act(host, "undo_result");
+  assert.equal(restoredNight.phase, "night");
+  assert.equal(restoredNight.players.find(player => player.id === players[1].id).alive, true);
+  assert.equal(restoredNight.announcement, null);
+  assert.equal(restoredNight.hostState.undoUntil, null);
+  assert.throws(() => act(host, "undo_result"), /undo window/);
+
+  act(host, "resolve", { kind: "night", playerIds: [] });
+  act(host, "advance"); act(host, "advance");
+  const won = act(host, "resolve", { kind: "vote", playerIds: [players[0].id] });
+  assert.equal(won.phase, "game_over");
+  assert.equal(won.winner, "Town");
+  const actualNow = Date.now;
+  try {
+    Date.now = () => won.hostState.undoUntil + 1;
+    assert.throws(() => act(host, "undo_result"), /undo window/);
+  } finally { Date.now = actualNow; }
+  const restoredVote = act(host, "undo_result");
+  assert.equal(restoredVote.phase, "voting");
+  assert.equal(restoredVote.winner, null);
+  assert.equal(restoredVote.players.find(player => player.id === players[0].id).alive, true);
+});

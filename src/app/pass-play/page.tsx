@@ -10,8 +10,9 @@ import { eliminatePassPlayPlayer, livingPassPlayPlayers, passPlayWinner, roleDec
 type Role = PassPlayRole;
 type AssignmentRole = Role | string;
 type Player = PassPlayPlayer;
-type Stage = "setup" | "assign" | "deal" | "unlock" | "night" | "morning" | "discussion" | "vote" | "result" | "gameOver";
+type Stage = "setup" | "assign" | "deal" | "unlock" | "night" | "reviewNight" | "morning" | "discussion" | "vote" | "reviewVote" | "result" | "gameOver";
 type NightAction = "Mafia" | "Doctor" | "Detective";
+const passPlayStorageKey = "nookplay-pass-play-v1";
 
 const roleInfo: Record<Role, { team: string; copy: string; icon: typeof Skull; tone: string }> = {
   Mafia: { team: "Mafia", copy: "Choose one Town player to eliminate each night.", icon: Skull, tone: "bg-primary" },
@@ -55,6 +56,8 @@ export default function PassPlayPage() {
   const [phaseEndsAt, setPhaseEndsAt] = useState<number | null>(null);
   const [paused, setPaused] = useState(false);
   const [remainingMs, setRemainingMs] = useState<number | null>(null);
+  const [undoState, setUndoState] = useState<{ players: Player[]; winner: "Mafia" | "Town" | null; eliminated: string | null; stage: "reviewNight" | "reviewVote"; expiresAt: number } | null>(null);
+  const [hydrated, setHydrated] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const living = livingPassPlayPlayers(players);
@@ -74,11 +77,39 @@ export default function PassPlayPage() {
   }, []);
 
   useEffect(() => {
-    if (stage !== "discussion") return;
-    setPaused(false);
-    setRemainingMs(null);
-    setPhaseEndsAt(Date.now() + roleCounts.discussionSeconds * 1000);
-  }, [stage, roleCounts.discussionSeconds]);
+    try {
+      const saved = JSON.parse(localStorage.getItem(passPlayStorageKey) || "null");
+      if (saved?.version === 1 && Array.isArray(saved.names) && Array.isArray(saved.players) && typeof saved.stage === "string") {
+        const stages: Stage[] = ["setup", "assign", "deal", "unlock", "night", "reviewNight", "morning", "discussion", "vote", "reviewVote", "result", "gameOver"];
+        if (stages.includes(saved.stage)) setStage(saved.stage);
+        setNames(saved.names); setPlayers(saved.players); setAdminCode(saved.adminCode ?? "");
+        setAssignmentMode(saved.assignmentMode === "manual" ? "manual" : "random");
+        setRoleCounts(saved.roleCounts ?? { mafia: 1, doctor: 1, detective: 1, nightSeconds: 120, discussionSeconds: 300, votingSeconds: 120 });
+        setCustomRoleName(saved.customRoleName ?? ""); setCustomRoleCount(saved.customRoleCount ?? 0);
+        setManualAssignments(saved.manualAssignments ?? {}); setAssignRole(saved.assignRole ?? "Mafia");
+        setDealIndex(saved.dealIndex ?? 0); setCardShown(false);
+        setRound(saved.round ?? 1); setNightIndex(saved.nightIndex ?? 0);
+        setNightChoices(saved.nightChoices ?? {}); setSelection(saved.selection ?? "");
+        setEliminated(saved.eliminated ?? null); setWinner(saved.winner ?? null);
+        setPhaseEndsAt(saved.phaseEndsAt ?? null); setPaused(saved.paused ?? false);
+        setRemainingMs(saved.remainingMs ?? null);
+        setUndoState(saved.undoState?.expiresAt > Date.now() ? saved.undoState : null);
+      }
+    } catch { /* A cleared or damaged snapshot starts a fresh game. */ }
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      localStorage.setItem(passPlayStorageKey, JSON.stringify({
+        version: 1, stage, names, players, adminCode, assignmentMode, roleCounts,
+        customRoleName, customRoleCount, manualAssignments, assignRole, dealIndex,
+        round, nightIndex, nightChoices, selection, eliminated, winner,
+        phaseEndsAt, paused, remainingMs, undoState
+      }));
+    } catch { /* The current session can continue if storage is unavailable. */ }
+  }, [hydrated, stage, names, players, adminCode, assignmentMode, roleCounts, customRoleName, customRoleCount, manualAssignments, assignRole, dealIndex, round, nightIndex, nightChoices, selection, eliminated, winner, phaseEndsAt, paused, remainingMs, undoState]);
 
   function addPlayer() {
     const name = cleanName(draftName);
@@ -194,13 +225,7 @@ export default function PassPlayPage() {
       const target = nextChoices.Mafia;
       const saved = target && nextChoices.Doctor === target;
       const lost = target && !saved ? target : null;
-      if (lost) {
-        const nextPlayers = eliminatePassPlayPlayer(players, lost);
-        setPlayers(nextPlayers);
-        setWinner(passPlayWinner(nextPlayers));
-      }
-      setEliminated(lost ?? null);
-      setStage("morning");
+      setStage("reviewNight");
     }
   }
 
@@ -211,6 +236,7 @@ export default function PassPlayPage() {
 
   function resolveVote() {
     const lost = selection || null;
+    setUndoState({ players, winner, eliminated, stage: "reviewVote", expiresAt: Date.now() + 15_000 });
     if (lost) setPlayers(current => eliminatePassPlayPlayer(current, lost));
     setEliminated(lost);
     const survivors = eliminatePassPlayPlayer(players, lost);
@@ -220,6 +246,7 @@ export default function PassPlayPage() {
   }
 
   function nextRound() {
+    setUndoState(null);
     setRound(value => value + 1);
     setNightIndex(0);
     setNightChoices({});
@@ -229,12 +256,30 @@ export default function PassPlayPage() {
   }
 
   function restart() {
-    setStage("setup"); setNames([]); setPlayers([]); setRound(1); setDealIndex(0); setCardShown(false); setNightIndex(0); setNightChoices({}); setSelection(""); setEliminated(null); setWinner(null); setAdminCode(""); setUnlockCode(""); setCodeError(""); setPhaseEndsAt(null); setPaused(false); setRemainingMs(null);
+    setStage("setup"); setNames([]); setPlayers([]); setRound(1); setDealIndex(0); setCardShown(false); setNightIndex(0); setNightChoices({}); setSelection(""); setEliminated(null); setWinner(null); setAdminCode(""); setUnlockCode(""); setCodeError(""); setPhaseEndsAt(null); setPaused(false); setRemainingMs(null); setUndoState(null);
+  }
+
+  function announceMorning() {
+    const target = nightChoices.Mafia;
+    const lost = target && nightChoices.Doctor !== target ? target : null;
+    const nextPlayers = eliminatePassPlayPlayer(players, lost);
+    setUndoState({ players, winner, eliminated, stage: "reviewNight", expiresAt: Date.now() + 15_000 });
+    setPlayers(nextPlayers); setWinner(lost ? passPlayWinner(nextPlayers) : null);
+    setEliminated(lost ?? null); setStage("morning");
+  }
+
+  function undoOutcome() {
+    if (!undoState || undoState.expiresAt <= Date.now()) return;
+    setPlayers(undoState.players); setWinner(undoState.winner);
+    setEliminated(undoState.eliminated); setStage(undoState.stage);
+    setUndoState(null);
   }
 
   const selectionTargets = living.filter(player => currentAction === "Mafia" ? player.role !== "Mafia" : true);
   const selectedName = players.find(player => player.id === selection)?.name;
   const currentStage = stage;
+
+  if (!hydrated) return <div className="glow min-h-screen" />;
 
   if (currentStage === "setup") return <NarratorSetup
     draftName={draftName} names={names} adminCode={adminCode} roleCounts={roleCounts} assignmentMode={assignmentMode} deck={fullDeck} customRoleName={customRoleName} customRoleCount={customRoleCount}
@@ -254,9 +299,12 @@ export default function PassPlayPage() {
     <header className="flex items-center justify-between gap-3 border-b-2 border-foreground/40 py-5"><Link href="/" className="flex items-center gap-2.5" aria-label="Nookplay home"><span className="flex h-10 w-10 items-center justify-center border-2 border-foreground bg-primary text-[#16181d] shadow-[3px_3px_0_#ffe16a]"><Moon size={22} fill="currentColor" /></span><span className="display text-[26px] sm:text-[30px]">nookplay<span className="text-primary">.</span></span></Link><Link href="/" className="chip text-xs font-black"><ArrowLeft size={15} /> Room game</Link></header>
 
     <main className="py-8 sm:py-12">
+      {undoState && undoState.expiresAt > now && (stage === "morning" || stage === "result" || stage === "gameOver") && <div className="mx-auto mb-5 flex max-w-2xl flex-wrap items-center justify-between gap-3 border-2 border-gold bg-gold/10 p-3"><p className="text-sm font-bold">Wrong outcome? {Math.ceil((undoState.expiresAt - now) / 1000)} seconds to undo.</p><Button variant="gold" onClick={undoOutcome}>Undo outcome <RotateCcw size={16} /></Button></div>}
       {(stage === "night" || stage === "discussion" || stage === "vote") && visibleRemaining !== null && <TimerDock milliseconds={visibleRemaining} paused={paused} onToggle={pauseOrResumeTimer} onExtend={extendTimer} />}
       {(stage === "night" || stage === "morning" || stage === "discussion" || stage === "vote" || stage === "result") && <NarratorRoster players={players} />}
-      <div className="mb-7 text-center sm:mb-10"><p className="eyebrow mb-3">One device · One narrator</p><h1 className="display text-4xl uppercase sm:text-6xl">PASS &amp; <span className="text-primary">PLAY.</span></h1><p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-muted sm:text-base">Hand the phone around for secret cards. Then use the narrator dashboard to choose role and player cards, record what happens, and keep the room moving.</p></div>
+      <div className="passplay-active-hero mb-7 text-center sm:mb-10"><p className="eyebrow mb-3">One device · One narrator</p><h1 className="display text-4xl uppercase sm:text-6xl">PASS &amp; <span className="text-primary">PLAY.</span></h1><p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-muted sm:text-base">Hand the phone around for secret cards. Then use the narrator dashboard to choose role and player cards, record what happens, and keep the room moving.</p></div>
+      {stage === "reviewNight" && <section className="panel mx-auto max-w-2xl p-5 sm:p-8"><p className="eyebrow">Review before announcing</p><h2 className="display mt-2 text-3xl">MORNING OUTCOME.</h2><p className="mt-5 text-lg font-bold">{nightChoices.Mafia && nightChoices.Doctor !== nightChoices.Mafia ? `${players.find(player => player.id === nightChoices.Mafia)?.name} will be marked out.` : "No one will be eliminated."}</p><p className="mt-2 text-sm text-muted">Roles stay private in the public announcement.</p><div className="mt-6 grid gap-2 sm:grid-cols-2"><Button variant="outline" onClick={() => { setSelection(nightChoices[currentAction] ?? ""); setStage("night"); }}>Back to choices</Button><Button onClick={announceMorning}>Confirm announcement <Check size={17} /></Button></div></section>}
+      {stage === "reviewVote" && <section className="panel mx-auto max-w-2xl p-5 sm:p-8"><p className="eyebrow">Review before announcing</p><h2 className="display mt-2 text-3xl">VOTE OUTCOME.</h2><p className="mt-5 text-lg font-bold">{selection ? `${selectedName} will be marked out.` : "No one will be eliminated."}</p><div className="mt-6 grid gap-2 sm:grid-cols-2"><Button variant="outline" onClick={() => setStage("vote")}>Back to choices</Button><Button onClick={resolveVote}>Confirm announcement <Check size={17} /></Button></div></section>}
 
       {stage === "setup" && <section className="panel mx-auto max-w-2xl overflow-hidden"><div className="panel-head"><div><p className="eyebrow mb-1">01 / Build the table</p><h2 className="display text-2xl sm:text-3xl">WHO IS PLAYING?</h2></div><Users className="text-gold" /></div><div className="p-4 sm:p-7"><div className="flex gap-2"><Input aria-label="Player name" value={draftName} onChange={event => setDraftName(event.target.value.toUpperCase())} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); addPlayer(); } }} placeholder="PLAYER NAME" maxLength={22} /><Button onClick={addPlayer} disabled={!cleanName(draftName) || names.includes(cleanName(draftName)) || names.length >= 16}>Add <ArrowRight size={16} /></Button></div><div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3">{names.map((name, index) => <button key={name} onClick={() => setNames(current => current.filter(item => item !== name))} className="flex min-w-0 items-center gap-2 border-2 border-foreground/50 bg-[#171a20] p-3 text-left text-sm font-black hover:border-primary"><span className="text-primary">{String(index + 1).padStart(2, "0")}</span><span className="truncate">{name}</span></button>)}</div>{names.length === 0 && <p className="py-10 text-center text-sm text-muted">Add 4–16 players. Tap a player card to remove it.</p>}<div className="mt-6 border-2 border-gold bg-gold/10 p-4"><p className="font-black text-gold">{names.length}/16 PLAYERS</p><p className="mt-1 text-sm leading-6 text-muted">Mafia, Doctor, Detective, and Villagers are dealt automatically. Add at least four players to begin.</p></div><Button size="lg" className="mt-5 w-full" disabled={names.length < 4} onClick={startDeal}>Deal secret cards <ArrowRight size={18} /></Button></div></section>}
 
@@ -264,11 +312,11 @@ export default function PassPlayPage() {
 
       {stage === "night" && currentAction && <section className="mx-auto max-w-3xl"><StageHeader round={round} title="Night falls" copy="Keep the room quiet. Choose a role card, then choose their player card." icon={<Moon size={25} />} /><div className="panel mt-5 overflow-hidden"><div className="border-b-2 border-foreground/40 p-4 sm:p-6"><div className="flex items-center gap-3"><span className="flex h-12 w-12 items-center justify-center border-2 border-foreground bg-primary text-[#17191f]">{(() => { const Icon = actionCopy[currentAction].Icon; return <Icon size={25} />; })()}</span><div><p className="eyebrow mb-1">Step {nightIndex + 1}/{actions.length}</p><h2 className="display text-2xl">{actionCopy[currentAction].title}</h2></div></div><p className="mt-4 text-sm leading-6 text-muted">{actionCopy[currentAction].prompt}</p></div><div className="p-4 sm:p-6"><p className="field-label">Choose a player</p><PlayerGrid players={selectionTargets} selected={selection} onSelect={chooseNightTarget} showRoles /><div className="mt-5 flex flex-col gap-3 border-t-2 border-foreground/40 pt-5 sm:flex-row sm:items-center sm:justify-between"><p className="text-sm text-muted">{selectedName ? <><strong className="text-foreground">{selectedName}</strong> is selected.</> : "Choose one card to continue."}</p><Button size="lg" disabled={!selection} onClick={confirmNightAction}>Confirm {currentAction} <Check size={18} /></Button></div></div></div></section>}
 
-      {stage === "morning" && <section className="mx-auto max-w-2xl"><StageHeader round={round} title="The city wakes" copy="Read the result aloud, then let everyone talk." icon={<Sun size={25} />} /><div className="panel mt-5 p-6 text-center sm:p-10"><Sun className="mx-auto text-gold" size={46} />{eliminated ? <><p className="eyebrow mt-6">Morning announcement</p><h2 className="display mt-3 text-4xl">{players.find(player => player.id === eliminated)?.name} IS OUT.</h2><p className="mt-4 text-sm leading-7 text-muted">Their role stays private. Move into discussion and let the table decide who to suspect.</p></> : <><p className="eyebrow mt-6">Morning announcement</p><h2 className="display mt-3 text-4xl">NO ONE DIED.</h2><p className="mt-4 text-sm leading-7 text-muted">The Doctor protected the target, or the Mafia did not settle on one.</p></>}<Button size="lg" className="mt-8 w-full" onClick={() => setStage(winner ? "gameOver" : "discussion")}>{winner ? "Reveal the winner" : "Begin discussion"} <ArrowRight size={18} /></Button></div></section>}
+      {stage === "morning" && <section className="mx-auto max-w-2xl"><StageHeader round={round} title="The city wakes" copy="Read the result aloud, then let everyone talk." icon={<Sun size={25} />} /><div className="panel mt-5 p-6 text-center sm:p-10"><Sun className="mx-auto text-gold" size={46} />{eliminated ? <><p className="eyebrow mt-6">Morning announcement</p><h2 className="display mt-3 text-4xl">{players.find(player => player.id === eliminated)?.name} IS OUT.</h2><p className="mt-4 text-sm leading-7 text-muted">Their role stays private. Move into discussion and let the table decide who to suspect.</p></> : <><p className="eyebrow mt-6">Morning announcement</p><h2 className="display mt-3 text-4xl">NO ONE DIED.</h2><p className="mt-4 text-sm leading-7 text-muted">The Doctor protected the target, or the Mafia did not settle on one.</p></>}<Button size="lg" className="mt-8 w-full" onClick={() => winner ? setStage("gameOver") : beginTimedStage("discussion")}>{winner ? "Reveal the winner" : "Begin discussion"} <ArrowRight size={18} /></Button></div></section>}
 
       {stage === "discussion" && <section className="mx-auto max-w-2xl"><StageHeader round={round} title="Talk it out" copy="Put the phone down. The best part happens at the table." icon={<Users size={25} />} /><div className="panel mt-5 p-6 sm:p-10"><p className="text-center text-lg font-bold leading-8">Who is acting strange? Who has an alibi? Let everyone make their case.</p><div className="mt-7 border-2 border-gold bg-gold/10 p-4 text-sm leading-6 text-muted">When the group is ready, the narrator asks for the vote. Nookplay records the result; it does not need every person to tap the screen.</div><Button size="lg" className="mt-7 w-full" onClick={advanceDiscussion}>Open the vote <ArrowRight size={18} /></Button></div></section>}
 
-      {stage === "vote" && <section className="mx-auto max-w-3xl"><StageHeader round={round} title="The vote" copy="Count the spoken votes, then tap the selected player card." icon={<Skull size={25} />} /><div className="panel mt-5 p-4 sm:p-6"><p className="field-label">Who leaves the table?</p><PlayerGrid players={living} selected={selection} onSelect={setSelection} showRoles /><div className="mt-5 flex flex-col gap-3 border-t-2 border-foreground/40 pt-5 sm:flex-row sm:items-center sm:justify-between"><Button variant="outline" onClick={() => { setSelection(""); setEliminated(null); setStage("result"); }}>No elimination</Button><Button size="lg" disabled={!selection} onClick={resolveVote}>Confirm elimination <Check size={18} /></Button></div></div></section>}
+      {stage === "vote" && <section className="mx-auto max-w-3xl"><StageHeader round={round} title="The vote" copy="Count the spoken votes, then tap the selected player card." icon={<Skull size={25} />} /><div className="panel mt-5 p-4 sm:p-6"><p className="field-label">Who leaves the table?</p><PlayerGrid players={living} selected={selection} onSelect={setSelection} showRoles /><div className="mt-5 flex flex-col gap-3 border-t-2 border-foreground/40 pt-5 sm:flex-row sm:items-center sm:justify-between"><Button variant="outline" onClick={() => { setSelection(""); setStage("reviewVote"); }}>No elimination</Button><Button size="lg" disabled={!selection} onClick={() => setStage("reviewVote")}>Review elimination <Check size={18} /></Button></div></div></section>}
 
       {stage === "result" && <section className="mx-auto max-w-2xl"><StageHeader round={round} title="Vote result" copy="Keep roles hidden and let the tension sit for a moment." icon={<Sun size={25} />} /><div className="panel mt-5 p-6 text-center sm:p-10"><p className="eyebrow">The table decided</p><h2 className="display mt-3 text-4xl">{eliminated ? `${players.find(player => player.id === eliminated)?.name} IS OUT.` : "NO ONE IS OUT."}</h2><p className="mt-5 text-sm leading-7 text-muted">The narrator still sees the roles in the dashboard. Everyone else keeps guessing.</p><Button size="lg" className="mt-8 w-full" onClick={nextRound}>Start round {round + 1} · night <Moon size={18} /></Button></div></section>}
 
@@ -307,10 +355,10 @@ function NarratorSetup({ draftName, names, adminCode, roleCounts, assignmentMode
 
   return <div className="glow relative min-h-screen overflow-hidden"><div className="grain pointer-events-none absolute inset-0" /><div className="relative z-10 mx-auto max-w-4xl px-4 pb-12 sm:px-7">
     <header className="flex items-center justify-between gap-3 border-b-2 border-foreground/40 py-5"><Link href="/" className="flex items-center gap-2.5" aria-label="Nookplay home"><span className="flex h-10 w-10 items-center justify-center border-2 border-foreground bg-primary text-[#16181d] shadow-[3px_3px_0_#ffe16a]"><Moon size={22} fill="currentColor" /></span><span className="display text-[26px] sm:text-[30px]">nookplay<span className="text-primary">.</span></span></Link><Link href="/" className="chip text-xs font-black"><ArrowLeft size={15} /> Room game</Link></header>
-    <main className="py-8 sm:py-12"><div className="mb-7 text-center sm:mb-10"><p className="eyebrow mb-3">One device · One narrator</p><h1 className="display text-4xl uppercase sm:text-6xl">PASS &amp; <span className="text-primary">PLAY.</span></h1><p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-muted sm:text-base">Set up the game, then pass one phone for private role cards. The narrator PIN brings control back after every player has looked.</p></div>
+    <main className="py-8 sm:py-12"><div className="passplay-setup-hero mb-7 text-center sm:mb-10"><p className="eyebrow mb-3">One device · One narrator</p><h1 className="display text-4xl uppercase sm:text-6xl">PASS &amp; <span className="text-primary">PLAY.</span></h1><p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-muted sm:text-base">Set up the game, then pass one phone for private role cards. The narrator PIN brings control back after every player has looked.</p></div>
       <section className="panel mx-auto max-w-2xl overflow-hidden"><div className="panel-head"><div><p className="eyebrow mb-1">01 / Narrator setup</p><h2 className="display text-2xl sm:text-3xl">BUILD THE TABLE.</h2></div><Users className="text-gold" /></div><div className="space-y-6 p-4 sm:p-7">
         <div><label className="field-label" htmlFor="pass-player-name">Add players</label><div className="flex gap-2"><Input id="pass-player-name" value={draftName} onChange={event => onDraftName(event.target.value.toUpperCase())} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); onAddPlayer(); } }} placeholder="PLAYER NAME" maxLength={22} /><Button onClick={onAddPlayer} disabled={!cleanName(draftName) || names.includes(cleanName(draftName)) || names.length >= 16}>Add <ArrowRight size={16} /></Button></div><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">{names.map((name, index) => <button key={name} onClick={() => onRemovePlayer(name)} className="flex min-w-0 items-center gap-2 border-2 border-foreground/50 bg-[#171a20] p-3 text-left text-sm font-black hover:border-primary"><span className="text-primary">{String(index + 1).padStart(2, "0")}</span><span className="truncate">{name}</span></button>)}</div><p className="mt-3 text-sm text-muted">{names.length ? `${names.length}/16 players · tap a name to remove it.` : "Add 4–16 players to begin."}</p></div>
-        <div className="grid gap-4 border-y-2 border-foreground/40 py-6 sm:grid-cols-2"><div><label className="field-label" htmlFor="narrator-pin">Narrator PIN</label><Input id="narrator-pin" type="password" inputMode="numeric" pattern="[0-9]*" minLength={4} maxLength={12} value={adminCode} onChange={event => onAdminCode(event.target.value)} placeholder="4–12 DIGITS" /><p className="mt-2 text-xs leading-5 text-muted">Use this PIN after the private cards to return the phone to narrator control.</p></div><div className="border-2 border-gold bg-gold/10 p-4"><p className="eyebrow text-gold">One-phone game</p><p className="mt-2 text-sm leading-6 text-muted">The game stays on this device. Keep the PIN private while cards are being passed around.</p></div></div>
+        <div className="border-y-2 border-foreground/40 py-4"><div><label className="field-label" htmlFor="narrator-pin">Narrator PIN</label><Input id="narrator-pin" type="password" inputMode="numeric" pattern="[0-9]*" minLength={4} maxLength={12} value={adminCode} onChange={event => onAdminCode(event.target.value)} placeholder="4–12 DIGITS" /><p className="mt-2 text-xs leading-5 text-muted">Use this PIN after the private cards to return the phone to narrator control.</p></div></div>
         <div><p className="field-label">Role cards</p><div className="grid grid-cols-3 gap-2"><NumberSetting label="Mafia" value={roleCounts.mafia} onChange={value => setNumber("mafia", value, 1, Math.max(1, names.length - 1))} /><NumberSetting label="Doctor" value={roleCounts.doctor} onChange={value => setNumber("doctor", value, 0, 1)} /><NumberSetting label="Detective" value={roleCounts.detective} onChange={value => setNumber("detective", value, 0, 1)} /></div><p className={`mt-3 text-sm ${deck ? "text-muted" : "text-primary"}`}>{deck ? `${roleCounts.mafia} Mafia · ${roleCounts.doctor} Doctor · ${roleCounts.detective} Detective · ${villagers} Villagers` : "Keep more Town players than Mafia, with at least one Villager."}</p></div>
         <div><p className="field-label">Role assignment</p><div className="grid grid-cols-2 gap-2"><button onClick={() => onAssignmentMode("random")} className={`border-2 p-3 text-left ${assignmentMode === "random" ? "border-gold bg-gold/10 shadow-[3px_3px_0_#ff7da8]" : "border-foreground/50 bg-[#171a20]"}`}><p className="font-black">SHUFFLE</p><p className="mt-1 text-xs text-muted">Deal random cards</p></button><button onClick={() => onAssignmentMode("manual")} className={`border-2 p-3 text-left ${assignmentMode === "manual" ? "border-gold bg-gold/10 shadow-[3px_3px_0_#ff7da8]" : "border-foreground/50 bg-[#171a20]"}`}><p className="font-black">ASSIGN</p><p className="mt-1 text-xs text-muted">Choose every card</p></button></div></div>
         <div><p className="field-label">Phase timers</p><div className="grid grid-cols-3 gap-2"><NumberSetting label="Night" suffix="sec" value={roleCounts.nightSeconds} onChange={value => setNumber("nightSeconds", value, 30, 1800)} /><NumberSetting label="Talk" suffix="sec" value={roleCounts.discussionSeconds} onChange={value => setNumber("discussionSeconds", value, 30, 1800)} /><NumberSetting label="Vote" suffix="sec" value={roleCounts.votingSeconds} onChange={value => setNumber("votingSeconds", value, 30, 1800)} /></div></div>
@@ -335,7 +383,7 @@ function NarratorUnlock({ code, error, onCode, onUnlock }: { code: string; error
 }
 
 function PassPlayShell({ eyebrow, title, copy, children }: { eyebrow: string; title: string; copy: string; children: ReactNode }) {
-  return <div className="glow relative min-h-screen overflow-hidden"><div className="grain pointer-events-none absolute inset-0" /><div className="relative z-10 mx-auto max-w-4xl px-4 pb-12 sm:px-7"><header className="flex items-center justify-between gap-3 border-b-2 border-foreground/40 py-5"><Link href="/" className="flex items-center gap-2.5" aria-label="Nookplay home"><span className="flex h-10 w-10 items-center justify-center border-2 border-foreground bg-primary text-[#16181d] shadow-[3px_3px_0_#ffe16a]"><Moon size={22} fill="currentColor" /></span><span className="display text-[26px] sm:text-[30px]">nookplay<span className="text-primary">.</span></span></Link><Link href="/" className="chip text-xs font-black"><ArrowLeft size={15} /> Room game</Link></header><main className="py-8 sm:py-12"><div className="mb-7 text-center sm:mb-10"><p className="eyebrow mb-3">{eyebrow}</p><h1 className="display text-4xl uppercase sm:text-6xl">{title}<span className="text-primary">.</span></h1><p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-muted sm:text-base">{copy}</p></div>{children}</main></div></div>;
+  return <div className="glow relative min-h-screen overflow-hidden"><div className="grain pointer-events-none absolute inset-0" /><div className="relative z-10 mx-auto max-w-4xl px-4 pb-12 sm:px-7"><header className="flex items-center justify-between gap-3 border-b-2 border-foreground/40 py-5"><Link href="/" className="flex items-center gap-2.5" aria-label="Nookplay home"><span className="flex h-10 w-10 items-center justify-center border-2 border-foreground bg-primary text-[#16181d] shadow-[3px_3px_0_#ffe16a]"><Moon size={22} fill="currentColor" /></span><span className="display text-[26px] sm:text-[30px]">nookplay<span className="text-primary">.</span></span></Link><Link href="/" className="chip text-xs font-black"><ArrowLeft size={15} /> Room game</Link></header><main className="py-8 sm:py-12"><div className="passplay-active-hero mb-7 text-center sm:mb-10"><p className="eyebrow mb-3">{eyebrow}</p><h1 className="display text-4xl uppercase sm:text-6xl">{title}<span className="text-primary">.</span></h1><p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-muted sm:text-base">{copy}</p></div>{children}</main></div></div>;
 }
 
 function TimerDock({ milliseconds, paused, onToggle, onExtend }: { milliseconds: number; paused: boolean; onToggle: () => void; onExtend: () => void }) {

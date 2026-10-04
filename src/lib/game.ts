@@ -15,6 +15,13 @@ export type Role = { id: string; name: string; team: Team; ability: Ability; cou
 export type Player = { id: string; name: string; roleId: string | null; alive: boolean; spectator: boolean };
 export type Elimination = { playerId: string; playerName: string; wasMafia: boolean; roleName: string | null };
 export type Announcement = { kind: "night" | "vote"; eliminations: Elimination[]; noElimination: boolean };
+type UndoResult = {
+  expiresAt: number; phase: Phase; winner: string | null; announcement: Announcement | null;
+  phaseEndsAt: number | null; paused: boolean; remainingMs: number | null;
+  aliveIds: string[]; nightActions: Record<string, string>;
+  inspectionResults: Record<string, { targetId: string; wasMafia: boolean }>;
+  votes: Record<string, string>; voteRound: number; tieNotice: boolean;
+};
 export type Room = {
   code: string; hostName: string; capacity: number; phase: Phase; round: number;
   players: Player[]; roles: Role[]; settings: Settings; announcement: Announcement | null;
@@ -22,6 +29,7 @@ export type Room = {
   phaseEndsAt: number | null; paused: boolean; remainingMs: number | null;
   nightActions: Record<string, string>; inspectionResults: Record<string, { targetId: string; wasMafia: boolean }>;
   votes: Record<string, string>; voteRound: number; tieNotice: boolean; readyIds: string[];
+  undoResult?: UndoResult | null;
 };
 type Credential = { code: string; playerId: string | null; host: boolean; pending?: boolean; requestedAt?: number };
 type GameStore = { rooms: Map<string, Room>; credentials: Map<string, Credential> };
@@ -62,6 +70,7 @@ function normalizeRoom(room: Room) {
   room.voteRound ??= 1;
   room.tieNotice ??= false;
   room.readyIds ??= [];
+  room.undoResult ??= null;
   room.players.forEach(player => { player.spectator ??= false; player.name = cleanName(player.name); });
   room.roles.forEach(role => { role.objective ??= defaultObjective(role.team, role.ability); });
   if (room.announcement && !room.announcement.eliminations) {
@@ -188,6 +197,7 @@ export function getRoomView(code: string, credentialValue: string | null) {
     inspections: room.inspectionResults,
     votesSubmitted: Object.keys(room.votes),
     voteCounts: room.phase === "voting" ? null : countTargets(room.votes),
+    undoUntil: room.undoResult && room.undoResult.expiresAt > Date.now() ? room.undoResult.expiresAt : null,
     pendingReclaims: [...store.credentials].filter(([, value]) => value.code === room.code && value.pending).map(([id, value]) => ({ id, playerId: value.playerId, name: room.players.find(player => player.id === value.playerId)?.name ?? "Unknown" }))
   } : undefined;
   return {
@@ -225,6 +235,7 @@ function checkWinner(room: Room) {
   if (room.winner) { room.phase = "game_over"; room.phaseEndsAt = null; room.paused = false; }
 }
 function startPhase(room: Room, phase: Phase, now = Date.now()) {
+  if (phase === "night" || phase === "discussion" || phase === "voting") room.undoResult = null;
   room.phase = phase;
   room.paused = false;
   room.remainingMs = null;
@@ -240,6 +251,14 @@ function checkedEliminations(room: Room, ids: unknown) {
   return players as Player[];
 }
 function applyResult(room: Room, kind: "night" | "vote", players: Player[]) {
+  room.undoResult = {
+    expiresAt: Date.now() + 15_000, phase: room.phase, winner: room.winner,
+    announcement: room.announcement ? structuredClone(room.announcement) : null,
+    phaseEndsAt: room.phaseEndsAt, paused: room.paused, remainingMs: room.remainingMs,
+    aliveIds: livingPlayers(room).map(player => player.id),
+    nightActions: { ...room.nightActions }, inspectionResults: structuredClone(room.inspectionResults),
+    votes: { ...room.votes }, voteRound: room.voteRound, tieNotice: room.tieNotice
+  };
   const eliminations = players.map(player => ({ playerId: player.id, playerName: player.name, wasMafia: roleOf(room, player)?.team === "Mafia", roleName: roleOf(room, player)?.name ?? null }));
   players.forEach(player => { player.alive = false; });
   room.announcement = { kind, eliminations, noElimination: eliminations.length === 0 };
@@ -434,6 +453,16 @@ export function changeRoom(code: string, credentialValue: string | null, input: 
       if (input.kind === "night" && room.phase === "night") resolveNight(room, input.playerIds);
       else if (input.kind === "vote" && room.phase === "voting") resolveVote(room, input.playerIds);
       else fail("This result does not match the current phase.", 409);
+    } else if (action === "undo_result") {
+      const undo = room.undoResult;
+      if (!undo || undo.expiresAt <= Date.now() || !(["morning", "result", "game_over"] as Phase[]).includes(room.phase)) fail("The undo window has ended.", 409);
+      room.phase = undo.phase; room.winner = undo.winner; room.announcement = undo.announcement;
+      room.phaseEndsAt = undo.phaseEndsAt === null ? null : Math.max(Date.now() + 15_000, undo.phaseEndsAt);
+      room.paused = undo.paused; room.remainingMs = undo.remainingMs;
+      room.players.forEach(player => { if (!player.spectator) player.alive = undo.aliveIds.includes(player.id); });
+      room.nightActions = undo.nightActions; room.inspectionResults = undo.inspectionResults;
+      room.votes = undo.votes; room.voteRound = undo.voteRound; room.tieNotice = undo.tieNotice;
+      room.undoResult = null;
     } else if (action === "pause") {
       if (!room.phaseEndsAt || room.paused) fail("This timer cannot be paused now.", 409);
       room.remainingMs = Math.max(0, room.phaseEndsAt - Date.now()); room.phaseEndsAt = null; room.paused = true;
@@ -455,12 +484,14 @@ export function changeRoom(code: string, credentialValue: string | null, input: 
         pending.pending = false; delete pending.requestedAt;
       } else store.credentials.delete(id);
     } else if (action === "end") {
+      room.undoResult = null;
       if (room.phase === "lobby") fail("The game has not started.", 409);
       const winnerRole = room.roles.find(role => role.id === input.winnerRoleId);
       if (input.winnerRoleId && (!winnerRole || winnerRole.team !== "Neutral" || winnerRole.count === 0)) fail("Choose an active custom Neutral role.");
       room.winner = winnerRole?.name ?? null;
       room.phase = "game_over"; room.phaseEndsAt = null;
     } else if (action === "play_again") {
+      room.undoResult = null;
       if (room.phase !== "game_over") fail("Finish the current game first.", 409);
       room.players.forEach(player => { player.roleId = null; player.alive = !player.spectator; });
       room.phase = "lobby"; room.round = 1; room.announcement = null; room.winner = null;
@@ -469,6 +500,6 @@ export function changeRoom(code: string, credentialValue: string | null, input: 
     } else fail("Unknown action.");
   }
   room.revision++;
-  if (room.settings.autoAdvance && room.settings.actionMode === "device") tickRoom(room.code);
+  if (action !== "undo_result" && room.settings.autoAdvance && room.settings.actionMode === "device") tickRoom(room.code);
   return getRoomView(room.code, credentialValue);
 }

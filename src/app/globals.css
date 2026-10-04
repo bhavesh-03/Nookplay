@@ -29,4 +29,19 @@ button { cursor: pointer; }
 .avatar { display: inline-flex; height: 36px; width: 36px; flex: none; align-items: center; justify-content: center; border: 2px solid #f8f2e8; border-radius: 5px; background: #8ddcfa; color: #17191f; font-weight: 900; }
 .error { border: 2px solid #ff7da8; border-radius: 5px; background: rgba(255,125,168,.12); padding: 12px 14px; color: #ffc8d9; font-size: 13px; font-weight: 700; }
 @media (max-width: 500px) { .panel-head { padding: 18px 16px; } }
+@media (max-width: 767px) {
+  .passplay-active-hero { display: none; }
+  .passplay-setup-hero { margin-bottom: 1.1rem; }
+  .passplay-setup-hero p:last-child { display: none; }
+  .passplay-setup-hero h1 { font-size: 2.5rem; }
+  .room-main > .mb-8 { margin-bottom: 1rem; }
+  .room-main > .mb-8 h1 { font-size: 2.25rem; }
+  .room-main > .mb-8 p.mt-3 { display: none; }
+  .room-game-grid[data-host="true"]:is([data-phase="night"], [data-phase="voting"]) .room-game-main { display: flex; flex-direction: column; }
+  .room-game-grid[data-host="true"]:is([data-phase="night"], [data-phase="voting"]) .host-round-control { order: -1; }
+  .room-game-grid .room-roster { margin-top: 0; }
+  .room-game-grid .room-roster .panel-head { padding: 13px 16px; }
+  .room-game-grid .room-roster .panel-head h2 { font-size: 1.2rem; }
+  .room-game-grid .room-roster:not([open]) { box-shadow: 4px 4px 0 #ff7da8; }
+}
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; } }

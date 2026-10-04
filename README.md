@@ -36,7 +36,7 @@ Create a room, share its code, and let every player join from their own phone. T
 
 ### Pass & Play Mafia
 
-Open **Pass & Play** from the Nookplay home screen when the group wants to use one phone. The narrator adds a 4–12 digit PIN, chooses role counts and timers, then either shuffles the deck or assigns every card manually. Deal one private card at a time, pass the phone to each player, and use the PIN to return it to narrator control. The narrator then uses role cards and player cards to record night choices, results, and votes. It is stored only in that browser session, so keep the phone with the narrator until the game ends.
+Open **Pass & Play** from the Nookplay home screen when the group wants to use one phone. The narrator adds a 4–12 digit PIN, chooses role counts and timers, then either shuffles the deck or assigns every card manually. Deal one private card at a time, pass the phone to each player, and use the PIN to return it to narrator control. The narrator records night choices and votes, reviews each outcome, and can undo an accidental announcement for 15 seconds. The game is saved in this browser on this device, so a refresh restores the round and timer. A role card returns to its hidden side after refresh. Clearing the browser's site data removes the saved game.
 
 ## Screenshots
 
@@ -77,11 +77,11 @@ The host selects **Reveal roles to players** once every player has an assigned r
 
 ### 4. Play the night
 
-The host starts night and asks everyone to close their eyes. The host calls Mafia, then Doctor, then Detective. In host-guided mode, the group gives choices in person and the host records them. In device mode, the relevant players submit private actions. The Doctor can stop the Mafia's chosen kill; tied Mafia choices cause no kill. The host announces the morning outcome.
+The host starts night and asks everyone to close their eyes. The host calls Mafia, then Doctor, then Detective. The phone shows one host task at a time. In host-guided mode, the group gives choices in person and the host records them. In device mode, the relevant players submit private actions. The Doctor can stop the Mafia's chosen kill; tied Mafia choices cause no kill. The host reviews the outcome before announcing it.
 
 ### 5. Discuss and vote
 
-The city wakes and sees who died, or that nobody died. Living players discuss face to face. The host opens voting when the group is ready. In host-guided mode, the host counts votes and records one or more eliminations. In device mode, each living player votes privately once; choices stay hidden until voting ends. A tie causes no elimination or a revote, according to the room setting. Eliminated players become spectators and cannot act or vote.
+The city wakes and sees who died, or that nobody died. Living players discuss face to face. The host opens voting when the group is ready. In host-guided mode, the host counts votes and records one or more eliminations. In device mode, each living player votes privately once; choices stay hidden until voting ends. The host reviews the result before announcing it and has 15 seconds to undo an accidental outcome. A tie causes no elimination or a revote, according to the room setting. Eliminated players become spectators and cannot act or vote.
 
 The public announcement shows names and outcomes. A player's exact role appears only if the host chose **Immediately** or **At game end** in room settings; **Never** keeps it host-only.
 
