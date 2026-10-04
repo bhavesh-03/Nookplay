@@ -1,6 +1,6 @@
 import { assertHost, changeRoom, createRoom, GameError, getRoomView, joinRoom, runWithState, tickRoom, type StoredRoom } from "@/lib/game";
 
-type Row = { revision: number; state: StoredRoom; expires_at: string };
+type Row = { revision: number; state: StoredRoom };
 type Session = { code: string; token: string; playerId: string };
 
 function config() {
@@ -27,10 +27,11 @@ async function request(path: string, options: RequestInit = {}) {
 
 async function read(code: string): Promise<Row> {
   const normalized = code.trim().toUpperCase();
-  const response = await request(`nookplay_rooms?code=eq.${encodeURIComponent(normalized)}&select=revision,state,expires_at&limit=1`);
+  const response = await request(`nookplay_rooms?code=eq.${encodeURIComponent(normalized)}&select=revision,state&limit=1`);
   const rows = await response.json() as Row[];
   if (!rows.length) throw new GameError("Room not found. It may have been deleted.", 404);
-  if (Date.now() >= new Date(rows[0].expires_at).getTime()) throw new GameError("This room expired after 24 hours.", 410);
+  const room = rows[0].state.room;
+  if (Date.now() >= (room.expiresAt ?? room.createdAt + 24 * 60 * 60 * 1000)) throw new GameError("This room expired after 24 hours.", 410);
   return rows[0];
 }
 
@@ -47,7 +48,7 @@ export async function createPersistedRoom(name: unknown, capacity: unknown): Pro
   for (let attempt = 0; attempt < 5; attempt++) {
     const { result, state } = runWithState(null, () => createRoom(name, capacity));
     try {
-      await request("nookplay_rooms", { method: "POST", body: JSON.stringify({ code: result.code, revision: state.room.revision, expires_at: new Date(state.room.expiresAt).toISOString(), state }) });
+      await request("nookplay_rooms", { method: "POST", body: JSON.stringify({ code: result.code, revision: state.room.revision, state }) });
       return result;
     } catch (error) { if (!(error instanceof GameError) || error.status !== 409) throw error; }
   }
