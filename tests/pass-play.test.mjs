@@ -19,5 +19,6 @@ test("an eliminated Pass & Play player cannot be selected in later phases", () =
 
 test("role deck preserves every requested role slot", () => {
   assert.deepEqual(roleDeck({ mafia: 1, doctor: 1, detective: 1, playerCount: 5 })?.sort(), ["Detective", "Doctor", "Mafia", "Villager", "Villager"]);
+  assert.deepEqual(roleDeck({ mafia: 1, doctor: 1, detective: 1, customTownCount: 2, playerCount: 6 })?.sort(), ["Detective", "Doctor", "Mafia", "Villager"]);
   assert.equal(roleDeck({ mafia: 3, doctor: 1, detective: 1, playerCount: 5 }), null);
 });

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { eliminatePassPlayPlayer, livingPassPlayPlayers, passPlayWinner, roleDeck, type PassPlayPlayer, type PassPlayRole } from "@/lib/pass-play";
 
 type Role = PassPlayRole;
+type AssignmentRole = Role | string;
 type Player = PassPlayPlayer;
 type Stage = "setup" | "assign" | "deal" | "unlock" | "night" | "morning" | "discussion" | "vote" | "result" | "gameOver";
 type NightAction = "Mafia" | "Doctor" | "Detective";
@@ -38,8 +39,10 @@ export default function PassPlayPage() {
   const [codeError, setCodeError] = useState("");
   const [assignmentMode, setAssignmentMode] = useState<"random" | "manual">("random");
   const [roleCounts, setRoleCounts] = useState({ mafia: 1, doctor: 1, detective: 1, nightSeconds: 120, discussionSeconds: 300, votingSeconds: 120 });
-  const [manualAssignments, setManualAssignments] = useState<Record<string, Role>>({});
-  const [assignRole, setAssignRole] = useState<Role>("Mafia");
+  const [customRoleName, setCustomRoleName] = useState("");
+  const [customRoleCount, setCustomRoleCount] = useState(0);
+  const [manualAssignments, setManualAssignments] = useState<Record<string, AssignmentRole>>({});
+  const [assignRole, setAssignRole] = useState<AssignmentRole>("Mafia");
   const [dealIndex, setDealIndex] = useState(0);
   const [cardShown, setCardShown] = useState(false);
   const [round, setRound] = useState(1);
@@ -58,8 +61,11 @@ export default function PassPlayPage() {
   const actions = useMemo(() => (["Mafia", "Doctor", "Detective"] as NightAction[]).filter(action => players.some(player => player.alive && player.role === action)), [players]);
   const currentAction = actions[nightIndex];
   const dealPlayer = players[dealIndex];
-  const deck = roleDeck({ mafia: roleCounts.mafia, doctor: roleCounts.doctor, detective: roleCounts.detective, playerCount: names.length });
-  const configuredRoleCounts: Record<Role, number> = { Mafia: roleCounts.mafia, Doctor: roleCounts.doctor, Detective: roleCounts.detective, Villager: deck?.filter(role => role === "Villager").length ?? 0 };
+  const customRole = cleanName(customRoleName);
+  const deck = roleDeck({ mafia: roleCounts.mafia, doctor: roleCounts.doctor, detective: roleCounts.detective, playerCount: names.length, customTownCount: customRoleCount });
+  const fullDeck = deck && [...deck, ...Array<string>(customRoleCount).fill(customRole)];
+  const configuredRoleCounts: Record<string, number> = { Mafia: roleCounts.mafia, Doctor: roleCounts.doctor, Detective: roleCounts.detective, Villager: deck?.filter(role => role === "Villager").length ?? 0, ...(customRole && customRoleCount ? { [customRole]: customRoleCount } : {}) };
+  const assignmentRoles = Object.keys(configuredRoleCounts).filter(role => configuredRoleCounts[role] > 0);
   const visibleRemaining = paused ? remainingMs ?? 0 : phaseEndsAt ? Math.max(0, phaseEndsAt - now) : null;
 
   useEffect(() => {
@@ -82,7 +88,7 @@ export default function PassPlayPage() {
   }
 
   function shuffleDeck() {
-    const roles = [...(deck ?? [])];
+    const roles = [...(fullDeck ?? [])];
     for (let index = roles.length - 1; index > 0; index--) {
       const next = Math.floor(Math.random() * (index + 1));
       [roles[index], roles[next]] = [roles[next], roles[index]];
@@ -99,7 +105,7 @@ export default function PassPlayPage() {
   }
 
   function startRoleSetup() {
-    if (!deck || adminCode.length < 4) return;
+    if (!fullDeck || adminCode.length < 4) return;
     if (assignmentMode === "random") { prepareDeal(); return; }
     setManualAssignments({});
     setAssignRole("Mafia");
@@ -111,7 +117,7 @@ export default function PassPlayPage() {
   function startDeal() { startRoleSetup(); }
 
   function completeManualDeal() {
-    if (!deck || Object.keys(manualAssignments).length !== names.length) return;
+    if (!fullDeck || Object.keys(manualAssignments).length !== names.length) return;
     setPlayers(names.map(name => ({ id: makeId(), name, role: manualAssignments[name], alive: true })));
     setDealIndex(0);
     setCardShown(false);
@@ -120,7 +126,7 @@ export default function PassPlayPage() {
 
   function assignManualRole(name: string) {
     const used = Object.values(manualAssignments).filter(role => role === assignRole).length;
-    if (manualAssignments[name] || used >= configuredRoleCounts[assignRole]) return;
+    if (manualAssignments[name] || used >= (configuredRoleCounts[assignRole] ?? 0)) return;
     setManualAssignments(current => ({ ...current, [name]: assignRole }));
   }
 
@@ -231,14 +237,14 @@ export default function PassPlayPage() {
   const currentStage = stage;
 
   if (currentStage === "setup") return <NarratorSetup
-    draftName={draftName} names={names} adminCode={adminCode} roleCounts={roleCounts} assignmentMode={assignmentMode} deck={deck}
+    draftName={draftName} names={names} adminCode={adminCode} roleCounts={roleCounts} assignmentMode={assignmentMode} deck={fullDeck} customRoleName={customRoleName} customRoleCount={customRoleCount}
     onDraftName={setDraftName} onAddPlayer={addPlayer} onRemovePlayer={name => setNames(current => current.filter(item => item !== name))}
     onAdminCode={value => setAdminCode(value.replace(/\D/g, "").slice(0, 12))}
-    onRoleCounts={setRoleCounts} onAssignmentMode={setAssignmentMode} onContinue={startRoleSetup}
+    onRoleCounts={setRoleCounts} onCustomRoleName={setCustomRoleName} onCustomRoleCount={setCustomRoleCount} onAssignmentMode={setAssignmentMode} onContinue={startRoleSetup}
   />;
 
   if (currentStage === "assign") return <ManualRoleAssignment
-    names={names} roleCounts={configuredRoleCounts} assignments={manualAssignments} selectedRole={assignRole}
+    names={names} roleCounts={configuredRoleCounts} roles={assignmentRoles} assignments={manualAssignments} selectedRole={assignRole}
     onSelectRole={setAssignRole} onAssign={assignManualRole} onClear={() => setManualAssignments({})} onContinue={completeManualDeal}
   />;
 
@@ -275,8 +281,8 @@ function StageHeader({ round, title, copy, icon }: { round: number; title: strin
   return <div className="text-center"><div className="mx-auto flex h-14 w-14 items-center justify-center border-2 border-foreground bg-gold text-[#17191f] shadow-[4px_4px_0_#ff7da8]">{icon}</div><p className="eyebrow mt-5">Round {round}</p><h1 className="display mt-2 text-4xl uppercase sm:text-5xl">{title}<span className="text-primary">.</span></h1><p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-muted">{copy}</p></div>;
 }
 
-function RoleCard({ role }: { role: Role }) {
-  const info = roleInfo[role];
+function RoleCard({ role }: { role: string }) {
+  const info = roleInfo[role as Role] ?? { team: "Town", copy: "Use the role your group agreed on. This card has no built-in night action.", icon: Users, tone: "bg-[#8ddcfa]" };
   const Icon = info.icon;
   return <div className={`mt-7 border-2 border-foreground p-6 text-[#17191f] shadow-[6px_6px_0_#ff7da8] ${info.tone}`}><Icon className="mx-auto" size={42} /><p className="mt-5 text-xs font-black uppercase tracking-[.2em]">You are</p><h3 className="display mt-2 text-5xl uppercase">{role}</h3><p className="mt-3 text-sm font-black uppercase">{info.team}</p><p className="mx-auto mt-5 max-w-sm text-sm leading-6">{info.copy}</p></div>;
 }
@@ -287,10 +293,10 @@ function PlayerGrid({ players, selected, onSelect, showRoles }: { players: Playe
 
 type RoleCounts = { mafia: number; doctor: number; detective: number; nightSeconds: number; discussionSeconds: number; votingSeconds: number };
 
-function NarratorSetup({ draftName, names, adminCode, roleCounts, assignmentMode, deck, onDraftName, onAddPlayer, onRemovePlayer, onAdminCode, onRoleCounts, onAssignmentMode, onContinue }: {
-  draftName: string; names: string[]; adminCode: string; roleCounts: RoleCounts; assignmentMode: "random" | "manual"; deck: Role[] | null;
+function NarratorSetup({ draftName, names, adminCode, roleCounts, assignmentMode, deck, customRoleName, customRoleCount, onDraftName, onAddPlayer, onRemovePlayer, onAdminCode, onRoleCounts, onCustomRoleName, onCustomRoleCount, onAssignmentMode, onContinue }: {
+  draftName: string; names: string[]; adminCode: string; roleCounts: RoleCounts; assignmentMode: "random" | "manual"; deck: string[] | null; customRoleName: string; customRoleCount: number;
   onDraftName: (value: string) => void; onAddPlayer: () => void; onRemovePlayer: (name: string) => void; onAdminCode: (value: string) => void;
-  onRoleCounts: React.Dispatch<React.SetStateAction<RoleCounts>>; onAssignmentMode: (value: "random" | "manual") => void; onContinue: () => void;
+  onRoleCounts: React.Dispatch<React.SetStateAction<RoleCounts>>; onCustomRoleName: (value: string) => void; onCustomRoleCount: (value: number) => void; onAssignmentMode: (value: "random" | "manual") => void; onContinue: () => void;
 }) {
   const valid = names.length >= 4 && Boolean(deck) && adminCode.length >= 4;
   const setNumber = (key: keyof RoleCounts, value: string, minimum: number, maximum: number) => {
@@ -308,7 +314,8 @@ function NarratorSetup({ draftName, names, adminCode, roleCounts, assignmentMode
         <div><p className="field-label">Role cards</p><div className="grid grid-cols-3 gap-2"><NumberSetting label="Mafia" value={roleCounts.mafia} onChange={value => setNumber("mafia", value, 1, Math.max(1, names.length - 1))} /><NumberSetting label="Doctor" value={roleCounts.doctor} onChange={value => setNumber("doctor", value, 0, 1)} /><NumberSetting label="Detective" value={roleCounts.detective} onChange={value => setNumber("detective", value, 0, 1)} /></div><p className={`mt-3 text-sm ${deck ? "text-muted" : "text-primary"}`}>{deck ? `${roleCounts.mafia} Mafia · ${roleCounts.doctor} Doctor · ${roleCounts.detective} Detective · ${villagers} Villagers` : "Keep more Town players than Mafia, with at least one Villager."}</p></div>
         <div><p className="field-label">Role assignment</p><div className="grid grid-cols-2 gap-2"><button onClick={() => onAssignmentMode("random")} className={`border-2 p-3 text-left ${assignmentMode === "random" ? "border-gold bg-gold/10 shadow-[3px_3px_0_#ff7da8]" : "border-foreground/50 bg-[#171a20]"}`}><p className="font-black">SHUFFLE</p><p className="mt-1 text-xs text-muted">Deal random cards</p></button><button onClick={() => onAssignmentMode("manual")} className={`border-2 p-3 text-left ${assignmentMode === "manual" ? "border-gold bg-gold/10 shadow-[3px_3px_0_#ff7da8]" : "border-foreground/50 bg-[#171a20]"}`}><p className="font-black">ASSIGN</p><p className="mt-1 text-xs text-muted">Choose every card</p></button></div></div>
         <div><p className="field-label">Phase timers</p><div className="grid grid-cols-3 gap-2"><NumberSetting label="Night" suffix="sec" value={roleCounts.nightSeconds} onChange={value => setNumber("nightSeconds", value, 30, 1800)} /><NumberSetting label="Talk" suffix="sec" value={roleCounts.discussionSeconds} onChange={value => setNumber("discussionSeconds", value, 30, 1800)} /><NumberSetting label="Vote" suffix="sec" value={roleCounts.votingSeconds} onChange={value => setNumber("votingSeconds", value, 30, 1800)} /></div></div>
-        <Button size="lg" className="w-full" disabled={!valid} onClick={onContinue}>{assignmentMode === "manual" ? "Choose role cards" : "Shuffle & deal cards"} <ArrowRight size={18} /></Button>
+        <div className="border-t-2 border-foreground/40 pt-6"><p className="field-label">Custom role card</p><div className="grid gap-2 sm:grid-cols-[1fr_110px]"><Input value={customRoleName} onChange={event => onCustomRoleName(event.target.value.toUpperCase())} placeholder="ROLE NAME, E.G. JOKER" maxLength={22} /><NumberSetting label="Cards" value={customRoleCount} onChange={value => onCustomRoleCount(Math.min(Math.max(Number(value) || 0, 0), names.length))} /></div><p className="mt-3 text-sm leading-6 text-muted">Custom cards are Town by default and have no built-in night action. Your group can use any agreed rule for them.</p></div>
+        <Button size="lg" className="w-full" disabled={!valid || (customRoleCount > 0 && !cleanName(customRoleName))} onClick={onContinue}>{assignmentMode === "manual" ? "Choose role cards" : "Shuffle & deal cards"} <ArrowRight size={18} /></Button>
       </div></section>
     </main>
   </div></div>;
@@ -318,9 +325,9 @@ function NumberSetting({ label, suffix, value, onChange }: { label: string; suff
   return <label className="border-2 border-foreground/50 bg-[#171a20] p-3"><span className="block text-xs font-black uppercase text-gold">{label}</span><span className="mt-2 flex items-center gap-1"><input className="min-w-0 w-full bg-transparent text-lg font-black outline-none" type="number" inputMode="numeric" value={value} onChange={event => onChange(event.target.value)} /><span className="text-xs text-muted">{suffix}</span></span></label>;
 }
 
-function ManualRoleAssignment({ names, roleCounts, assignments, selectedRole, onSelectRole, onAssign, onClear, onContinue }: { names: string[]; roleCounts: Record<Role, number>; assignments: Record<string, Role>; selectedRole: Role; onSelectRole: (role: Role) => void; onAssign: (name: string) => void; onClear: () => void; onContinue: () => void }) {
+function ManualRoleAssignment({ names, roleCounts, roles, assignments, selectedRole, onSelectRole, onAssign, onClear, onContinue }: { names: string[]; roleCounts: Record<string, number>; roles: string[]; assignments: Record<string, AssignmentRole>; selectedRole: AssignmentRole; onSelectRole: (role: AssignmentRole) => void; onAssign: (name: string) => void; onClear: () => void; onContinue: () => void }) {
   const assignedCount = Object.keys(assignments).length;
-  return <PassPlayShell eyebrow="02 / Narrator setup" title="ASSIGN THE CARDS." copy="Select a role card, then tap each player. These assignments stay hidden when the phone is passed around."><section className="panel overflow-hidden"><div className="p-4 sm:p-7"><p className="field-label">Choose a role card</p><div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{(Object.keys(roleInfo) as Role[]).map(role => { const used = Object.values(assignments).filter(value => value === role).length; const remaining = roleCounts[role] - used; return <button key={role} disabled={remaining < 1} onClick={() => onSelectRole(role)} className={`border-2 p-3 text-left disabled:cursor-not-allowed disabled:opacity-40 ${selectedRole === role ? "border-gold bg-gold/10 shadow-[3px_3px_0_#ff7da8]" : "border-foreground/50 bg-[#171a20]"}`}><p className="font-black">{role.toUpperCase()}</p><p className="mt-1 text-xs text-muted">{remaining} left</p></button>; })}</div><p className="field-label mt-6">Tap a player</p><div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{names.map((name, index) => <button key={name} disabled={Boolean(assignments[name])} onClick={() => onAssign(name)} className="min-h-20 border-2 border-foreground/50 bg-[#171a20] p-3 text-left disabled:opacity-55"><p className="text-xs font-black text-primary">{String(index + 1).padStart(2, "0")}</p><p className="mt-1 truncate font-black">{name}</p><p className="mt-1 text-xs text-gold">{assignments[name] ?? "Unassigned"}</p></button>)}</div><div className="mt-6 flex flex-col gap-3 border-t-2 border-foreground/40 pt-5 sm:flex-row sm:items-center sm:justify-between"><p className="text-sm text-muted">{assignedCount}/{names.length} cards assigned</p><Button variant="outline" onClick={onClear}>Clear cards</Button><Button disabled={assignedCount !== names.length} onClick={onContinue}>Deal private cards <ArrowRight size={18} /></Button></div></div></section></PassPlayShell>;
+  return <PassPlayShell eyebrow="02 / Narrator setup" title="ASSIGN THE CARDS." copy="Select a role card, then tap each player. These assignments stay hidden when the phone is passed around."><section className="panel overflow-hidden"><div className="p-4 sm:p-7"><p className="field-label">Choose a role card</p><div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{roles.map(role => { const used = Object.values(assignments).filter(value => value === role).length; const remaining = roleCounts[role] - used; return <button key={role} disabled={remaining < 1} onClick={() => onSelectRole(role)} className={`border-2 p-3 text-left disabled:cursor-not-allowed disabled:opacity-40 ${selectedRole === role ? "border-gold bg-gold/10 shadow-[3px_3px_0_#ff7da8]" : "border-foreground/50 bg-[#171a20]"}`}><p className="font-black">{role.toUpperCase()}</p><p className="mt-1 text-xs text-muted">{remaining} left</p></button>; })}</div><p className="field-label mt-6">Tap a player</p><div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{names.map((name, index) => <button key={name} disabled={Boolean(assignments[name])} onClick={() => onAssign(name)} className="min-h-20 border-2 border-foreground/50 bg-[#171a20] p-3 text-left disabled:opacity-55"><p className="text-xs font-black text-primary">{String(index + 1).padStart(2, "0")}</p><p className="mt-1 truncate font-black">{name}</p><p className="mt-1 text-xs text-gold">{assignments[name] ?? "Unassigned"}</p></button>)}</div><div className="mt-6 flex flex-col gap-3 border-t-2 border-foreground/40 pt-5 sm:flex-row sm:items-center sm:justify-between"><p className="text-sm text-muted">{assignedCount}/{names.length} cards assigned</p><Button variant="outline" onClick={onClear}>Clear cards</Button><Button disabled={assignedCount !== names.length} onClick={onContinue}>Deal private cards <ArrowRight size={18} /></Button></div></div></section></PassPlayShell>;
 }
 
 function NarratorUnlock({ code, error, onCode, onUnlock }: { code: string; error: string; onCode: (value: string) => void; onUnlock: () => void }) {

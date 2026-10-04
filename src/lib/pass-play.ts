@@ -1,5 +1,5 @@
 export type PassPlayRole = "Mafia" | "Villager" | "Doctor" | "Detective";
-export type PassPlayPlayer = { id: string; name: string; role: PassPlayRole; alive: boolean };
+export type PassPlayPlayer = { id: string; name: string; role: string; alive: boolean };
 
 export function livingPassPlayPlayers(players: PassPlayPlayer[]) {
   return players.filter(player => player.alive);
@@ -19,8 +19,9 @@ export function passPlayWinner(players: PassPlayPlayer[]): "Mafia" | "Town" | nu
   return null;
 }
 
-export function roleDeck(counts: { mafia: number; doctor: number; detective: number; playerCount: number }) {
-  const specialCount = counts.mafia + counts.doctor + counts.detective;
+export function roleDeck(counts: { mafia: number; doctor: number; detective: number; playerCount: number; customTownCount?: number }) {
+  const customTownCount = counts.customTownCount ?? 0;
+  const specialCount = counts.mafia + counts.doctor + counts.detective + customTownCount;
   const townCount = counts.playerCount - counts.mafia;
   if (
     counts.playerCount < 4 ||
