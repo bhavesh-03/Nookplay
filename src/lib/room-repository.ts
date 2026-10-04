@@ -1,6 +1,6 @@
-import { changeRoom, createRoom, GameError, getRoomView, joinRoom, runWithState, type StoredRoom } from "@/lib/game";
+import { assertHost, changeRoom, createRoom, GameError, getRoomView, joinRoom, runWithState, tickRoom, type StoredRoom } from "@/lib/game";
 
-type Row = { revision: number; state: StoredRoom };
+type Row = { revision: number; state: StoredRoom; expires_at: string };
 type Session = { code: string; token: string; playerId: string };
 
 function config() {
@@ -27,9 +27,10 @@ async function request(path: string, options: RequestInit = {}) {
 
 async function read(code: string): Promise<Row> {
   const normalized = code.trim().toUpperCase();
-  const response = await request(`nookplay_rooms?code=eq.${encodeURIComponent(normalized)}&select=revision,state&limit=1`);
+  const response = await request(`nookplay_rooms?code=eq.${encodeURIComponent(normalized)}&select=revision,state,expires_at&limit=1`);
   const rows = await response.json() as Row[];
-  if (!rows.length) throw new GameError("Room not found. Check the code and try again.", 404);
+  if (!rows.length) throw new GameError("Room not found. It may have been deleted.", 404);
+  if (Date.now() >= new Date(rows[0].expires_at).getTime()) throw new GameError("This room expired after 24 hours.", 410);
   return rows[0];
 }
 
@@ -46,33 +47,57 @@ export async function createPersistedRoom(name: unknown, capacity: unknown): Pro
   for (let attempt = 0; attempt < 5; attempt++) {
     const { result, state } = runWithState(null, () => createRoom(name, capacity));
     try {
-      await request("nookplay_rooms", { method: "POST", body: JSON.stringify({ code: result.code, revision: state.room.revision, state }) });
+      await request("nookplay_rooms", { method: "POST", body: JSON.stringify({ code: result.code, revision: state.room.revision, expires_at: new Date(state.room.expiresAt).toISOString(), state }) });
       return result;
     } catch (error) { if (!(error instanceof GameError) || error.status !== 409) throw error; }
   }
   throw new GameError("Could not create a unique room code. Try again.", 503);
 }
 
-export async function joinPersistedRoom(code: unknown, name: unknown): Promise<Session> {
+export async function joinPersistedRoom(code: unknown, name: unknown, reclaim = false): Promise<Session> {
   const normalized = String(code ?? "").trim().toUpperCase();
   for (let attempt = 0; attempt < 5; attempt++) {
     const row = await read(normalized);
-    const { result, state } = runWithState(row.state, () => joinRoom(normalized, name));
+    const { result, state } = runWithState(row.state, () => joinRoom(normalized, name, reclaim));
     if (await compareAndSave(normalized, row.revision, state)) return result;
   }
   throw new GameError("The room changed while you joined. Try again.", 409);
 }
 
 export async function getPersistedRoom(code: string, token: string | null) {
-  const row = await read(code);
-  return runWithState(row.state, () => getRoomView(code, token)).result;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const row = await read(code);
+    const { result, state } = runWithState(row.state, () => {
+      const tick = tickRoom(code);
+      return { code: tick.code, changed: tick.changed, view: getRoomView(code, token) };
+    });
+    if (!result.changed || await compareAndSave(code.trim().toUpperCase(), row.revision, state)) return result.view;
+  }
+  throw new GameError("The room changed. Try again.", 409);
 }
 
 export async function changePersistedRoom(code: string, token: string | null, input: Record<string, unknown>) {
   for (let attempt = 0; attempt < 5; attempt++) {
     const row = await read(code);
-    const { result, state } = runWithState(row.state, () => changeRoom(code, token, input));
+    const { result, state } = runWithState(row.state, () => {
+      tickRoom(code);
+      return changeRoom(code, token, input);
+    });
     if (await compareAndSave(code.trim().toUpperCase(), row.revision, state)) return result;
   }
   throw new GameError("The room changed at the same time. Try again.", 409);
+}
+
+export async function deletePersistedRoom(code: string, token: string | null) {
+  const normalized = code.trim().toUpperCase();
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const row = await read(normalized);
+    runWithState(row.state, () => assertHost(normalized, token));
+    const response = await request(`nookplay_rooms?code=eq.${encodeURIComponent(normalized)}&revision=eq.${row.revision}&select=code`, {
+      method: "DELETE", headers: { Prefer: "return=representation" }
+    });
+    const rows = await response.json() as Array<{ code: string }>;
+    if (rows.length === 1) return { code: normalized, deleted: true };
+  }
+  throw new GameError("The room changed. Try deleting it again.", 409);
 }

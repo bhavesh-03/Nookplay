@@ -1,30 +1,32 @@
 # Nookplay
 
-A host-led hidden-role game for 4–16 players. Built with Next.js, TypeScript, Tailwind CSS, and shadcn-style controls. The UI has a dark neo brutalist theme and adapts to phones.
+A host-led Mafia game for 4–16 players. The dark neo brutalist interface works on phones and desktops. Players join by code and name, without accounts or a shared Wi-Fi network.
 
-## Supabase setup
+## Set up
 
-1. In your Supabase project's SQL Editor, run [`supabase/migrations/202610040001_nookplay_rooms.sql`](supabase/migrations/202610040001_nookplay_rooms.sql). It creates a room table with row level security enabled and no browser access.
-2. Copy `.env.example` to `.env.local`. Set `SUPABASE_URL` to your project's Data API URL and `SUPABASE_SECRET_KEY` to a server-side secret key from Settings → API Keys. A legacy `SUPABASE_SERVICE_ROLE_KEY` also works. Never prefix the secret with `NEXT_PUBLIC_`.
+1. Run `supabase/migrations/202610040001_nookplay_rooms.sql` and then `supabase/migrations/202610040002_room_expiry.sql` in the Supabase SQL Editor. The second migration adds a 24-hour room lifetime and schedules removal of expired rows every 15 minutes.
+2. Copy `.env.example` to `.env.local`. Set `SUPABASE_URL` to the project URL ending in `.supabase.co` and `SUPABASE_SECRET_KEY` to the server-side secret key. A legacy `SUPABASE_SERVICE_ROLE_KEY` also works. Never expose the secret through `NEXT_PUBLIC_`.
 3. Run `npm install` and `npm run dev`, then open `http://localhost:3000`.
 
-Players can join through a public deployment URL from any network. No Supabase key is sent to the browser. The Next.js API checks each room token before returning a role or accepting a host action. Only SHA-256 hashes of those tokens are saved in Supabase. The whole room is stored in one database row; every change uses a revision check so concurrent joins or host actions cannot silently overwrite one another.
+The Next.js API stores room state in Supabase Postgres. Room access tokens are saved as SHA-256 hashes. Player responses never contain another player's role or role distribution. Revisions prevent concurrent changes from silently overwriting each other. The browser polls for updates every two seconds; Redis and Supabase Realtime are not required.
 
-## Game flow
+## Play
 
-1. The host creates a room and shares its code or invite link. The host does not occupy a player slot. Players join with a name, without an account.
-2. The host edits role names, teams, abilities, and quantities, then assigns each player's role manually or shuffles assignments.
-3. The host presses **Reveal roles to players**. Each connected player receives their own private card within about two seconds, with no refresh. A press and hold displays the card.
-4. For this first version, the host coordinates night actions and votes outside the app. The host selects one or more eliminated players, or leaves everyone unselected for no elimination. The app marks them all out together and announces whether each was Mafia. The host's room list shows each player's role and alive/out status; player views keep other roles private.
-5. After the vote result, the host presses **Start round 2 · Night** (or the corresponding next round). The app increases the round number and begins a new night. The game checks for Town victory when no Mafia remain and Mafia victory when living Mafia equal or outnumber living Town.
+1. The host creates a room and shares its six-character code or invite link. Names appear in capitals. The host does not occupy a player slot.
+2. In the waiting room, the host sets the player limit, phase durations, role reveal policy, tie rule, automatic timer advancement, spectator joining, and action mode. **Host guided** is the default: the group talks and makes choices face to face, while the host records outcomes. **Private devices** lets players submit night actions and votes in the app.
+3. Roles default to Mafia, Villager, Doctor, and Detective. The host can edit quantities, assign roles manually or randomly, and add custom Town, Mafia, or Neutral roles with a group-defined objective. Role quantities must match the joined player count.
+4. The host reveals roles. Each player sees only their own card by pressing and holding it. The host starts night when the group is ready.
+5. At night, the host calls Mafia, Doctor, and Detective in person. The host can record their choices or override the outcome, including multiple eliminations. In private-device mode, Mafia targets, protection, and inspection are submitted privately. The Doctor can protect the target; the Detective sees a private Mafia/not-Mafia result.
+6. Morning announces who was eliminated without revealing their role unless the room setting allows it. Discussion and voting follow. The host can pause, resume, extend, or advance the timer. In guided mode, the host selects the eliminated players. In device mode, votes stay hidden until resolved. A tie causes no elimination or a revote, according to room settings.
+7. After the vote result, the host starts the next night. Town wins when no Mafia remain; Mafia wins when living Mafia equal or outnumber living Town. A host can declare a custom Neutral role's group-defined win. **Play again** resets the game but keeps room members and settings.
 
-The host session is saved in this browser. Refreshing or accidentally closing the tab resumes it automatically. **Back to home** shows a **Resume hosting** button. Recovery depends on keeping this browser's local storage; clearing browser data or switching devices loses host access, so the host should use the same browser throughout a game.
+The host can always see players' roles and alive/out status. Eliminated players follow the game as spectators and cannot act or vote. A player can return from the same browser using saved access, or enter the room code and their original name to request a host-approved recovery on a new browser. Approval revokes the old access token. The host's access is saved in their browser to survive accidental tab closure. Clearing that browser's storage loses host access, so use the same browser for the room's lifetime.
 
-Updates use a two-second poll of the shared Supabase state. Redis and Supabase Realtime are not required for this first version.
+Rooms stop accepting requests 24 hours after creation and are removed by the scheduled database job. The host can delete a room sooner.
 
-## Deploy to Vercel
+## Deploy
 
-Sign in with `vercel login`, then run `vercel` for a preview deployment. Add `SUPABASE_URL` and `SUPABASE_SECRET_KEY` as **server-side** environment variables for Preview and Production in the Vercel project, then run `vercel --prod`. Do not deploy until the SQL migration and environment variables are present. Never put the secret key in client code or a public repository.
+Add `SUPABASE_URL` and `SUPABASE_SECRET_KEY` as server-side Vercel environment variables for Preview and Production, then deploy with `vercel --prod`. Apply both migrations before deploying this version.
 
 ## Checks
 

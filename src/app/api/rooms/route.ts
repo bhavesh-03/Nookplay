@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const result = body.action === "create" ? await createPersistedRoom(body.name, body.capacity) : body.action === "join" ? await joinPersistedRoom(body.code, body.name) : null;
+    const result = body.action === "create" ? await createPersistedRoom(body.name, body.capacity) : body.action === "join" || body.action === "reclaim" ? await joinPersistedRoom(body.code, body.name, body.action === "reclaim") : null;
     if (!result) return NextResponse.json({ error: "Unknown action." }, { status: 400 });
     return NextResponse.json(result);
   } catch (error) {
