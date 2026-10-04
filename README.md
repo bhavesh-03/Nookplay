@@ -18,12 +18,23 @@ A phone-friendly companion for playing Mafia together, face to face. One host gu
 | --- | --- |
 | **Game** | Host-guided Mafia for 4–16 players. |
 | **Join** | Room code or invite link and a name. No player account or shared Wi-Fi. |
+| **Pass & Play** | A separate one-phone Mafia mode with pass-around secret cards and a narrator dashboard. |
 | **Host** | Sets roles, guides phases, records outcomes, sees the full roster, and can pass host controls to a player in the lobby. |
 | **Players** | See only their own secret role and public announcements. |
 | **Devices** | Responsive phone and desktop layouts. Room views refresh automatically about every two seconds. |
 | **Room lifetime** | 24 hours from creation, or until the host deletes the room. |
 
 Nookplay supports **Mafia** today. It helps the group play in person; it does not replace the host's voice, discussion, or eye-closed night routine. The default is **host-guided mode**. A separate **device mode** lets players submit private night actions and votes on their phones.
+
+## Choose a way to play
+
+### Room game
+
+Create a room, share its code, and let every player join from their own phone. The host runs the game from a full control view while each player sees only their private role and public results. Use this for groups where everyone has a device nearby.
+
+### Pass & Play Mafia
+
+Open **Pass & Play** from the Nookplay home screen when the group wants to use one phone. Add 4–16 names, deal one secret card at a time, and pass the phone to each player. The narrator then uses role cards and player cards to record night choices, results, and votes. It is stored only in that browser session, so keep the phone with the narrator until the game ends.
 
 ## Screenshots
 
