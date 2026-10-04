@@ -34,7 +34,7 @@ Create a room, share its code, and let every player join from their own phone. T
 
 ### Pass & Play Mafia
 
-Open **Pass & Play** from the Nookplay home screen when the group wants to use one phone. Add 4–16 names, deal one secret card at a time, and pass the phone to each player. The narrator then uses role cards and player cards to record night choices, results, and votes. It is stored only in that browser session, so keep the phone with the narrator until the game ends.
+Open **Pass & Play** from the Nookplay home screen when the group wants to use one phone. The narrator adds a 4–12 digit PIN, chooses role counts and timers, then either shuffles the deck or assigns every card manually. Deal one private card at a time, pass the phone to each player, and use the PIN to return it to narrator control. The narrator then uses role cards and player cards to record night choices, results, and votes. It is stored only in that browser session, so keep the phone with the narrator until the game ends.
 
 ## Screenshots
 
