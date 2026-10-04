@@ -13,6 +13,34 @@ function setup(names = ["Alice", "Bob", "Cara", "Dan"]) {
 }
 const act = (host, action, extra = {}) => changeRoom(host.code, host.token, { action, ...extra });
 
+test("host transfer swaps a lobby player and keeps authority on the chosen device", () => {
+  const host = createRoom("Host", 4);
+  const guests = ["Alice", "Bob", "Cara", "Dan"].map(name => joinRoom(host.code, name));
+  const before = getRoomView(host.code, host.token);
+  const alice = before.players.find(player => player.name === "ALICE");
+  act(host, "assign", { playerId: alice.id, roleId: "mafia" });
+  assert.throws(() => act(host, "transfer_host", { playerId: "missing" }), /Choose a joined player/);
+  const after = act(host, "transfer_host", { playerId: alice.id });
+  assert.equal(after.viewer.host, false);
+  assert.equal(after.viewer.name, "HOST");
+  assert.equal(after.hostName, "ALICE");
+  assert.equal(after.hostState, undefined);
+  assert.equal(after.players.length, 4);
+  assert.equal(after.players.some(player => player.name === "ALICE"), false);
+  assert.equal(after.players.find(player => player.name === "HOST").roleId, undefined);
+  const newHost = getRoomView(host.code, guests[0].token);
+  assert.equal(newHost.viewer.host, true);
+  assert.equal(newHost.viewer.name, "ALICE");
+  assert.equal(newHost.players.find(player => player.name === "HOST").roleId, null);
+  assert.throws(() => act(host, "settings", { settings: { ...newHost.settings, capacity: 4 } }), /Only the host/);
+  act(guests[0], "settings", { settings: { ...newHost.settings, capacity: 4 } });
+  assert.throws(() => act(guests[0], "transfer_host", { playerId: "missing" }), /Choose a joined player/);
+  const players = getRoomView(host.code, guests[0].token).players;
+  ["mafia", "town", "doctor", "detective"].forEach((roleId, index) => act(guests[0], "assign", { playerId: players[index].id, roleId }));
+  act(guests[0], "reveal");
+  assert.throws(() => act(guests[0], "transfer_host", { playerId: players[0].id }), /waiting room/);
+});
+
 test("private reveal, uppercase names, host roster, guided round two and replay", () => {
   const { host, guests, players } = setup(["Alice", "Bob", "Cara", "Dan", "Eve"]);
   const playerView = getRoomView(host.code, guests[1].token);

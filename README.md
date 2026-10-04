@@ -4,41 +4,87 @@
 
 **MAFIA: SUSPECT EVERYONE.**
 
-A host-led, phone-friendly Mafia game for people playing together in the same room.
+A phone-friendly companion for playing Mafia together, face to face. One host guides the room; everyone else gets a private card and clear announcements.
 
-[Play Nookplay](https://nookplay.vercel.app) · [Report a bug](https://nookplay.vercel.app/report) · [Suggest a game](https://github.com/bhavesh-03/Nookplay/issues/new?template=game_proposal.yml)
+[Play now](https://nookplay.vercel.app) · [How to play](#how-to-play) · [Contribute](#contributing) · [Report a bug](https://nookplay.vercel.app/report)
+
+<img src="docs/images/desktop-home.png" alt="Nookplay desktop home screen with create room form" width="800" />
 
 </div>
 
-## Why Nookplay?
+## At a glance
 
-The host should run the game, not spend the evening managing paper slips and remembering who is still alive. Nookplay gives the host a clear role sheet and phase controls while players receive private role cards and live announcements on their own phones. Conversation, accusations, and surprises still happen face to face.
+| | |
+| --- | --- |
+| **Game** | Host-guided Mafia for 4–16 players. |
+| **Join** | Room code or invite link and a name. No player account or shared Wi-Fi. |
+| **Host** | Sets roles, guides phases, records outcomes, sees the full roster, and can pass host controls to a player in the lobby. |
+| **Players** | See only their own secret role and public announcements. |
+| **Devices** | Responsive phone and desktop layouts. Room views refresh automatically about every two seconds. |
+| **Room lifetime** | 24 hours from creation, or until the host deletes the room. |
 
-Nookplay currently supports **Mafia**. It uses a dark, neo-brutalist interface designed for mobile screens. Players join with a room code and a name; no email, password, or shared Wi-Fi is needed.
+Nookplay supports **Mafia** today. It helps the group play in person; it does not replace the host's voice, discussion, or eye-closed night routine. The default is **host-guided mode**. A separate **device mode** lets players submit private night actions and votes on their phones.
 
-## Features
+## Screenshots
 
-- **Host-led by default:** the host calls roles, records night choices, announces results, and can eliminate several players at once. Optional device mode accepts private night actions and votes.
-- **Private roles:** Mafia, Villager, Doctor, and Detective are included. The host can change quantities, assign roles manually or randomly, and add custom Town, Mafia, or Neutral characters such as Joker.
-- **Clear game flow:** waiting room → private reveal → night → morning → discussion → vote → result → next round or victory.
-- **Host controls:** player limits, phase timers, pause/resume/extend, reveal policy, tie rule, spectator joining, play again, and room deletion.
-- **Return safely:** names are shown in capitals. Players can continue from a saved browser or request host-approved recovery using their room code and name. The host can reopen an accidentally closed room from the same browser.
-- **Short-lived rooms:** access ends 24 hours after creation. An optional Supabase Cron migration removes expired rows from storage.
-- **Bug reports:** an in-app Formspree form sends reports to the maintainer; GitHub Issues remains available.
+These are screenshots of the running app. The room codes shown were temporary demo rooms.
 
-## How a round works
+| Mobile home | Player lobby | Private role card |
+| :---: | :---: | :---: |
+| <img src="docs/images/mobile-home.png" alt="Mobile home and create room form" width="240" /> | <img src="docs/images/mobile-lobby.png" alt="Mobile player waiting room" width="240" /> | <img src="docs/images/mobile-private-card.png" alt="Mobile secret role card before reveal" width="240" /> |
 
-1. The host creates a room and shares its code or link. The host does not take a player slot.
-2. Players join. The host edits the roles and assigns one to each player.
-3. The host reveals the cards. Each player presses and holds their own card to see their role.
-4. During night, the host calls Mafia, Doctor, and Detective. In host-guided mode, everyone makes choices in person and the host records the outcome. In device mode, actions can be submitted privately.
-5. Morning announces who was eliminated. Roles stay private unless the host chose immediate or end-of-game reveals.
-6. Players discuss and vote. The host announces the result; eliminated players become spectators. A tie causes no elimination or a revote, depending on room settings.
-7. If no team has won, the host starts the next night. Town wins when no Mafia remain. Mafia wins when living Mafia equal or outnumber living Town. The host may declare a Neutral character's agreed win condition.
+| Desktop host lobby | Host handoff |
+| :---: | :---: |
+| <img src="docs/images/desktop-lobby.png" alt="Desktop host lobby showing players and role assignments" width="580" /> | <img src="docs/images/desktop-host-transfer.png" alt="Desktop host transfer and room settings controls" width="580" /> |
+
+The [mobile host lobby](docs/images/mobile-host-lobby.png) shows how the controls fit on a phone after a host transfer.
+
+## How to play
+
+### 1. Create a room
+
+The host opens [Nookplay](https://nookplay.vercel.app), enters a name, chooses a player limit, and shares the six-character room code or invite link. The host is **not** one of the players at this point. Players join on their own phones with the code and a name. Names appear in capitals.
+
+### 2. Set up the cast
+
+In the waiting room, the host adjusts role quantities so the total equals the joined player count. The defaults are Mafia, Villager, Doctor, and Detective. The host can assign each player's role or select **Randomize roles**. Custom roles can have a name, team, ability, quantity, and objective; a Neutral role such as Joker follows a win rule agreed by the group.
+
+| Default role | Team | Night activity |
+| --- | --- | --- |
+| Mafia | Mafia | Chooses a target together. |
+| Villager | Town | Sleeps; discusses and votes by day. |
+| Doctor | Town | Protects one player. |
+| Detective | Town | Inspects one player; the host signals whether they are Mafia. |
+
+The host may change the player limit, timers, reveal policy, tie rule, and action mode while the room is in the waiting room. **Change host** passes control to a joined player. That player leaves the player list; the former host joins it and needs a role assignment before cards are revealed. Host transfer is available only in the waiting room.
+
+### 3. Reveal private cards
+
+The host selects **Reveal roles to players** once every player has an assigned role and the counts match. Each player presses and holds their card to see only their own role, team, ability, and objective. They can hide it again and mark themselves ready. No refresh is needed.
+
+### 4. Play the night
+
+The host starts night and asks everyone to close their eyes. The host calls Mafia, then Doctor, then Detective. In host-guided mode, the group gives choices in person and the host records them. In device mode, the relevant players submit private actions. The Doctor can stop the Mafia's chosen kill; tied Mafia choices cause no kill. The host announces the morning outcome.
+
+### 5. Discuss and vote
+
+The city wakes and sees who died, or that nobody died. Living players discuss face to face. The host opens voting when the group is ready. In host-guided mode, the host counts votes and records one or more eliminations. In device mode, each living player votes privately once; choices stay hidden until voting ends. A tie causes no elimination or a revote, according to the room setting. Eliminated players become spectators and cannot act or vote.
+
+The public announcement shows names and outcomes. A player's exact role appears only if the host chose **Immediately** or **At game end** in room settings; **Never** keeps it host-only.
+
+### 6. Start the next round or play again
+
+Town wins when no Mafia remain alive. Mafia wins when living Mafia equal or outnumber living Town. Otherwise the host selects **Start round 2 · Night**, and the night → morning → discussion → voting cycle repeats. The host can declare a custom Neutral winner when the group's agreed rule is met.
+
+After a game ends, **Play again** returns everyone to the lobby with names intact and roles, deaths, actions, votes, timers, and results cleared. The host can adjust the cast for the next game.
+
+### Returning to a room
+
+The browser saves room access locally. A host who closes the tab can choose **Resume hosting** on the same browser. A player can return with their saved browser access; if that access is gone, they can enter the room code and their previous name and ask the current host to approve recovery. Deleted or expired rooms cannot be rejoined.
 
 ## Run locally
 
-**Requirements:** Node.js 20 or newer, npm, and a Supabase project.
+**Requirements:** Node.js 20+, npm, and a Supabase project.
 
 ```bash
 git clone https://github.com/bhavesh-03/Nookplay.git
@@ -47,73 +93,34 @@ npm install
 cp .env.example .env.local
 ```
 
-1. Run [`202610040001_nookplay_rooms.sql`](supabase/migrations/202610040001_nookplay_rooms.sql) in the Supabase SQL Editor.
-2. Run [`202610040002_room_expiry.sql`](supabase/migrations/202610040002_room_expiry.sql) to add scheduled cleanup. The app can run before this second migration, but expired rows will remain stored until it is applied.
-3. Add your project's URL and **server-side** secret key to `.env.local`:
+1. Apply [`202610040001_nookplay_rooms.sql`](supabase/migrations/202610040001_nookplay_rooms.sql) in the Supabase SQL Editor. Apply [`202610040002_room_expiry.sql`](supabase/migrations/202610040002_room_expiry.sql) for scheduled deletion of expired rows.
+2. Set the server-side Supabase values in `.env.local`:
 
    ```env
    SUPABASE_URL=https://your-project-ref.supabase.co
    SUPABASE_SECRET_KEY=sb_secret_replace_me
    ```
 
-4. Start the app:
+   A legacy `SUPABASE_SERVICE_ROLE_KEY` also works. Never expose either key with a `NEXT_PUBLIC_` prefix.
 
-   ```bash
-   npm run dev
-   ```
+3. Optionally set `NEXT_PUBLIC_FORMSPREE_FORM_ID` for the bug report form. See [Bug reports](#bug-reports).
+4. Start the app with `npm run dev` and open [localhost:3000](http://localhost:3000). Use separate browsers or private windows to simulate several players.
 
-Open [localhost:3000](http://localhost:3000). To simulate several players, use separate browsers or private windows. The browser checks for room changes every two seconds.
-
-### Environment variables
-
-| Variable | Purpose |
-| --- | --- |
-| `SUPABASE_URL` | Supabase project URL, ending in `.supabase.co`. |
-| `SUPABASE_SECRET_KEY` | Server-only secret key. A legacy `SUPABASE_SERVICE_ROLE_KEY` also works. |
-| `NEXT_PUBLIC_FORMSPREE_FORM_ID` | Public Formspree form ID for bug reports. |
-
-Never prefix secret values with `NEXT_PUBLIC_`, commit `.env.local`, or paste credentials into an issue. The Formspree form ID is public and safe to use with that prefix.
-
-## Set up bug reports with Formspree
-
-The bug form is at `/report`. [Formspree](https://formspree.io/) handles submissions and email notifications, so no SMTP password or mail server is needed. [Its Free plan starts at 50 submissions per month](https://help.formspree.io/articles/account-management/account-limits).
-
-1. Create a form in the Formspree dashboard and set its notification email to the inbox that should receive bug reports.
-2. Copy the form endpoint, such as `https://formspree.io/f/abcdefgh`, and put its final ID in `.env.local`:
-
-   ```env
-   NEXT_PUBLIC_FORMSPREE_FORM_ID=abcdefgh
-   ```
-
-3. Add the same variable to Vercel's **Production** environment and redeploy. Submit one report from `/report` and check both Formspree's submissions and your inbox. Formspree may ask you to confirm the notification address.
-
-The form sends title, description, optional steps and reply email, and a hidden spam field. It shows rate limit and delivery errors, with GitHub Issues as a fallback. Without a configured form ID, no submission is attempted. Avoid putting private game information in reports.
-
-## Project layout
+## Architecture and privacy
 
 | Path | Responsibility |
 | --- | --- |
-| `src/app/page.tsx` | Home, lobby, host controls, and player game screens. |
-| `src/lib/game.ts` | Mafia roles, room state, phase transitions, privacy, and win rules. |
-| `src/lib/room-repository.ts` | Supabase persistence and revision checks. |
-| `src/app/api/rooms/` | Room API routes. |
+| `src/app/page.tsx` | Responsive home, lobby, private reveal, and game screens. |
+| `src/lib/game.ts` | Rules, role visibility, host authority, phase changes, elimination, and win checks. |
+| `src/lib/room-repository.ts` | Supabase persistence and revision checks for concurrent changes. |
+| `src/app/api/rooms/` | Room creation, joining, recovery, updates, and deletion. |
 | `src/app/report/` | Bug report form and Formspree submission. |
-| `supabase/migrations/` | Database schema and expiry cleanup. |
-| `tests/game.test.mjs` | Rule and privacy tests. |
+| `supabase/migrations/` | Database schema and scheduled expiry cleanup. |
+| `tests/game.test.mjs` | Rules, privacy, recovery, transfer, and phase tests. |
 
-The browser never receives the Supabase secret. Room access tokens are stored as SHA-256 hashes in the database. Each room update checks its revision to prevent concurrent actions from silently overwriting one another.
+The server validates host actions and decides what each viewer may see. The Supabase secret stays on the server. Room access tokens are stored as SHA-256 hashes in the database. Each update checks the room revision so concurrent actions do not silently overwrite each other. Phones poll for changes; Redis is not required. Room access ends after 24 hours even if the optional cleanup migration has not yet deleted the stored row.
 
-## Contribute
-
-Bug fixes, accessibility improvements, translations, tests, and new games are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow.
-
-**Want to add another game?** Open a [game proposal](https://github.com/bhavesh-03/Nookplay/issues/new?template=game_proposal.yml) first. Describe its player count, setup, private information, host actions, round flow, and win conditions. Mafia is currently the only game and its rules live in `src/lib/game.ts`; a new game will need its own state and screens rather than a renamed Mafia role. Keep the host's work clear, minimize device time during play, and include tests for secret information and phase transitions. See the [new game checklist](CONTRIBUTING.md#adding-a-new-game).
-
-## Report a bug
-
-Use the [in-app form](https://nookplay.vercel.app/report) or [open a GitHub issue](https://github.com/bhavesh-03/Nookplay/issues/new?template=bug_report.yml). Include what you expected, what happened, how to repeat it, and your device/browser. Do not include room tokens, private role assignments, or passwords.
-
-## Checks
+## Development checks
 
 ```bash
 npm run typecheck
@@ -123,8 +130,25 @@ npm run build
 
 ## Deployment
 
-The app deploys to Vercel with the Supabase variables set for Production. Apply the database migrations before relying on scheduled cleanup. The Formspree form ID is optional for running the game, but required for sending bug reports. No Redis service is needed.
+The production app runs on Vercel with a Supabase Postgres room store. Apply the migrations, set `SUPABASE_URL` and `SUPABASE_SECRET_KEY` in Vercel **Production** environment variables, and deploy. Set `NEXT_PUBLIC_FORMSPREE_FORM_ID` at build time if you want in-app bug reports. The Supabase key must stay server-only. The two-second browser polling works across networks and does not require players to share Wi-Fi.
+
+## Contributing
+
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow and pull request checklist. In short:
+
+1. Search [issues](https://github.com/bhavesh-03/Nookplay/issues) and open one for a new game or a substantial rules change.
+2. Fork the repo, create a focused branch, and make the change.
+3. Keep the phone experience usable and validate private information on the server.
+4. Run the development checks above, then open a pull request with behavior notes and screenshots for UI changes.
+
+**Adding a game:** open a [new game proposal](https://github.com/bhavesh-03/Nookplay/issues/new?template=game_proposal.yml) describing player count, setup, private information, host duties, phases, ties, eliminations, and win conditions. Mafia is currently the only game; a new game needs its own rules and screens, with tests for secrecy and phase transitions. See the [new game guide](CONTRIBUTING.md#adding-a-new-game).
+
+## Bug reports
+
+Use the [in-app form](https://nookplay.vercel.app/report) or [GitHub's bug report template](https://github.com/bhavesh-03/Nookplay/issues/new?template=bug_report.yml). Include expected and actual behavior, steps to reproduce, and your browser/device. Do not include room tokens, passwords, or private roles from a live game.
+
+Formspree delivers in-app reports. To configure another deployment, create a form in [Formspree](https://formspree.io/), choose its notification inbox, and copy the ID from `https://formspree.io/f/FORM_ID` into `NEXT_PUBLIC_FORMSPREE_FORM_ID`. The form ID is public; no SMTP password is needed. Redeploy after setting it, then submit one test report and check both Formspree's submissions and the destination inbox. If no ID is configured, the form points reporters to GitHub Issues.
 
 ## License
 
-Nookplay is released under the [MIT License](LICENSE).
+Nookplay is available under the [MIT License](LICENSE).

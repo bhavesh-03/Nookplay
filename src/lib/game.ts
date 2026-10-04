@@ -156,6 +156,7 @@ export function joinRoom(codeValue: unknown, nameValue: unknown, reclaim = false
     room.revision++;
     return { code, token: credential, playerId: existing.id, pending: true };
   }
+  if (name === room.hostName) fail("The host is already using that name. Choose another name.", 409);
   if (reclaim) fail("That player name is not in this room.", 404);
   const spectator = room.phase !== "lobby";
   if (spectator && !room.settings.spectatorJoin) fail("This game has started. Spectator joining is off.", 409);
@@ -190,7 +191,7 @@ export function getRoomView(code: string, credentialValue: string | null) {
     pendingReclaims: [...store.credentials].filter(([, value]) => value.code === room.code && value.pending).map(([id, value]) => ({ id, playerId: value.playerId, name: room.players.find(player => player.id === value.playerId)?.name ?? "Unknown" }))
   } : undefined;
   return {
-    code: room.code, capacity: room.capacity, phase: room.phase, round: room.round, revision: room.revision,
+    code: room.code, hostName: room.hostName, capacity: room.capacity, phase: room.phase, round: room.round, revision: room.revision,
     expiresAt: room.expiresAt, phaseEndsAt: room.phaseEndsAt, paused: room.paused, remainingMs: room.remainingMs,
     voteRound: room.voteRound, tieNotice: room.tieNotice, settings: room.settings,
     players: room.players.map(player => ({ id: player.id, name: player.name, alive: player.alive, spectator: player.spectator,
@@ -352,7 +353,26 @@ export function changeRoom(code: string, credentialValue: string | null, input: 
     }
   } else {
     if (!credential.host) fail("Only the host can change the game.", 403);
-    if (action === "settings") {
+    if (action === "transfer_host") {
+      if (room.phase !== "lobby") fail("Transfer the host in the waiting room.", 409);
+      const nextHost = activePlayers(room).find(player => player.id === input.playerId);
+      if (!nextHost) fail("Choose a joined player to become the host.", 404);
+      const nextCredential = [...store.credentials].find(([, value]) => value.code === room.code && value.playerId === nextHost.id && !value.pending)?.[1];
+      if (!nextCredential) fail("That player must rejoin before becoming the host.", 409);
+      const oldHostId = token();
+      let oldHostName = room.hostName;
+      for (let suffix = 2; room.players.some(player => player.id !== nextHost.id && player.name === oldHostName) || oldHostName === nextHost.name; suffix++) {
+        oldHostName = cleanName(`${room.hostName.slice(0, 18)} ${suffix}`);
+      }
+      room.players = room.players.filter(player => player.id !== nextHost.id);
+      room.players.push({ id: oldHostId, name: oldHostName, roleId: null, alive: true, spectator: false });
+      room.hostName = nextHost.name;
+      credential.host = false;
+      credential.playerId = oldHostId;
+      nextCredential.host = true;
+      nextCredential.playerId = null;
+      for (const [key, value] of store.credentials) if (value.code === room.code && value.playerId === nextHost.id) store.credentials.delete(key);
+    } else if (action === "settings") {
       if (room.phase !== "lobby") fail("Room settings can be changed in the waiting room.", 409);
       room.settings = validateSettings(input.settings, room);
     } else if (action === "roles") {
