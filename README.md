@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="src/app/icon.svg" alt="Nookplay moon logo" width="88" height="88" />
+
 # Nookplay
 
 **MAFIA: SUSPECT EVERYONE.**
