@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 const issuesUrl = "https://github.com/bhavesh-03/Nookplay/issues/new?template=bug_report.yml";
-const formId = process.env.NEXT_PUBLIC_FORMSPREE_FORM_ID;
+const formId = process.env.NEXT_PUBLIC_FORMSPREE_FORM_ID?.trim();
 
 export default function ReportPage() {
   const [title, setTitle] = useState("");
