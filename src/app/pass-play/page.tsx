@@ -256,7 +256,30 @@ export default function PassPlayPage() {
   }
 
   function restart() {
-    setStage("setup"); setNames([]); setPlayers([]); setRound(1); setDealIndex(0); setCardShown(false); setNightIndex(0); setNightChoices({}); setSelection(""); setEliminated(null); setWinner(null); setAdminCode(""); setUnlockCode(""); setCodeError(""); setPhaseEndsAt(null); setPaused(false); setRemainingMs(null); setUndoState(null);
+    if (timer.current) clearTimeout(timer.current);
+    setStage("setup");
+    setDraftName("");
+    setPlayers([]);
+    setManualAssignments({});
+    setAssignRole("Mafia");
+    setRound(1);
+    setDealIndex(0);
+    setCardShown(false);
+    setNightIndex(0);
+    setNightChoices({});
+    setSelection("");
+    setEliminated(null);
+    setWinner(null);
+    setUnlockCode("");
+    setCodeError("");
+    setPhaseEndsAt(null);
+    setPaused(false);
+    setRemainingMs(null);
+    setUndoState(null);
+  }
+
+  function confirmRestart() {
+    if (window.confirm("Restart this game? The current round and roles will be cleared. Player names and setup settings will be kept.")) restart();
   }
 
   function announceMorning() {
@@ -290,13 +313,13 @@ export default function PassPlayPage() {
 
   if (currentStage === "assign") return <ManualRoleAssignment
     names={names} roleCounts={configuredRoleCounts} roles={assignmentRoles} assignments={manualAssignments} selectedRole={assignRole}
-    onSelectRole={setAssignRole} onAssign={assignManualRole} onClear={() => setManualAssignments({})} onContinue={completeManualDeal}
+    onSelectRole={setAssignRole} onAssign={assignManualRole} onClear={() => setManualAssignments({})} onContinue={completeManualDeal} onRestart={confirmRestart}
   />;
 
-  if (currentStage === "unlock") return <NarratorUnlock code={unlockCode} error={codeError} onCode={value => { setUnlockCode(value.replace(/\D/g, "").slice(0, 12)); setCodeError(""); }} onUnlock={unlockNarrator} />;
+  if (currentStage === "unlock") return <NarratorUnlock code={unlockCode} error={codeError} onCode={value => { setUnlockCode(value.replace(/\D/g, "").slice(0, 12)); setCodeError(""); }} onUnlock={unlockNarrator} onRestart={confirmRestart} />;
 
   return <div className="glow relative min-h-screen overflow-hidden"><div className="grain pointer-events-none absolute inset-0" /><div className="relative z-10 mx-auto max-w-4xl px-4 pb-12 sm:px-7">
-    <header className="flex items-center justify-between gap-3 border-b-2 border-foreground/40 py-5"><Link href="/" className="flex items-center gap-2.5" aria-label="Nookplay home"><span className="flex h-10 w-10 items-center justify-center border-2 border-foreground bg-primary text-[#16181d] shadow-[3px_3px_0_#ffe16a]"><Moon size={22} fill="currentColor" /></span><span className="display text-[26px] sm:text-[30px]">nookplay<span className="text-primary">.</span></span></Link><Link href="/" className="chip text-xs font-black"><ArrowLeft size={15} /> Room game</Link></header>
+    <header className="flex items-center justify-between gap-3 border-b-2 border-foreground/40 py-5"><Link href="/" className="flex items-center gap-2.5" aria-label="Nookplay home"><span className="flex h-10 w-10 items-center justify-center border-2 border-foreground bg-primary text-[#16181d] shadow-[3px_3px_0_#ffe16a]"><Moon size={22} fill="currentColor" /></span><span className="display text-[26px] sm:text-[30px]">nookplay<span className="text-primary">.</span></span></Link><div className="flex flex-wrap justify-end gap-2"><Button variant="outline" size="sm" onClick={confirmRestart}><RotateCcw size={15} /> Restart game</Button><Link href="/" className="chip text-xs font-black"><ArrowLeft size={15} /> Room game</Link></div></header>
 
     <main className="py-8 sm:py-12">
       {undoState && undoState.expiresAt > now && (stage === "morning" || stage === "result" || stage === "gameOver") && <div className="mx-auto mb-5 flex max-w-2xl flex-wrap items-center justify-between gap-3 border-2 border-gold bg-gold/10 p-3"><p className="text-sm font-bold">Wrong outcome? {Math.ceil((undoState.expiresAt - now) / 1000)} seconds to undo.</p><Button variant="gold" onClick={undoOutcome}>Undo outcome <RotateCcw size={16} /></Button></div>}
@@ -373,17 +396,17 @@ function NumberSetting({ label, suffix, value, onChange }: { label: string; suff
   return <label className="border-2 border-foreground/50 bg-[#171a20] p-3"><span className="block text-xs font-black uppercase text-gold">{label}</span><span className="mt-2 flex items-center gap-1"><input className="min-w-0 w-full bg-transparent text-lg font-black outline-none" type="number" inputMode="numeric" value={value} onChange={event => onChange(event.target.value)} /><span className="text-xs text-muted">{suffix}</span></span></label>;
 }
 
-function ManualRoleAssignment({ names, roleCounts, roles, assignments, selectedRole, onSelectRole, onAssign, onClear, onContinue }: { names: string[]; roleCounts: Record<string, number>; roles: string[]; assignments: Record<string, AssignmentRole>; selectedRole: AssignmentRole; onSelectRole: (role: AssignmentRole) => void; onAssign: (name: string) => void; onClear: () => void; onContinue: () => void }) {
+function ManualRoleAssignment({ names, roleCounts, roles, assignments, selectedRole, onSelectRole, onAssign, onClear, onContinue, onRestart }: { names: string[]; roleCounts: Record<string, number>; roles: string[]; assignments: Record<string, AssignmentRole>; selectedRole: AssignmentRole; onSelectRole: (role: AssignmentRole) => void; onAssign: (name: string) => void; onClear: () => void; onContinue: () => void; onRestart: () => void }) {
   const assignedCount = Object.keys(assignments).length;
-  return <PassPlayShell eyebrow="02 / Narrator setup" title="ASSIGN THE CARDS." copy="Select a role card, then tap each player. These assignments stay hidden when the phone is passed around."><section className="panel overflow-hidden"><div className="p-4 sm:p-7"><p className="field-label">Choose a role card</p><div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{roles.map(role => { const used = Object.values(assignments).filter(value => value === role).length; const remaining = roleCounts[role] - used; return <button key={role} disabled={remaining < 1} onClick={() => onSelectRole(role)} className={`border-2 p-3 text-left disabled:cursor-not-allowed disabled:opacity-40 ${selectedRole === role ? "border-gold bg-gold/10 shadow-[3px_3px_0_#ff7da8]" : "border-foreground/50 bg-[#171a20]"}`}><p className="font-black">{role.toUpperCase()}</p><p className="mt-1 text-xs text-muted">{remaining} left</p></button>; })}</div><p className="field-label mt-6">Tap a player</p><div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{names.map((name, index) => <button key={name} disabled={Boolean(assignments[name])} onClick={() => onAssign(name)} className="min-h-20 border-2 border-foreground/50 bg-[#171a20] p-3 text-left disabled:opacity-55"><p className="text-xs font-black text-primary">{String(index + 1).padStart(2, "0")}</p><p className="mt-1 truncate font-black">{name}</p><p className="mt-1 text-xs text-gold">{assignments[name] ?? "Unassigned"}</p></button>)}</div><div className="mt-6 flex flex-col gap-3 border-t-2 border-foreground/40 pt-5 sm:flex-row sm:items-center sm:justify-between"><p className="text-sm text-muted">{assignedCount}/{names.length} cards assigned</p><Button variant="outline" onClick={onClear}>Clear cards</Button><Button disabled={assignedCount !== names.length} onClick={onContinue}>Deal private cards <ArrowRight size={18} /></Button></div></div></section></PassPlayShell>;
+  return <PassPlayShell eyebrow="02 / Narrator setup" title="ASSIGN THE CARDS." copy="Select a role card, then tap each player. These assignments stay hidden when the phone is passed around." onRestart={onRestart}><section className="panel overflow-hidden"><div className="p-4 sm:p-7"><p className="field-label">Choose a role card</p><div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{roles.map(role => { const used = Object.values(assignments).filter(value => value === role).length; const remaining = roleCounts[role] - used; return <button key={role} disabled={remaining < 1} onClick={() => onSelectRole(role)} className={`border-2 p-3 text-left disabled:cursor-not-allowed disabled:opacity-40 ${selectedRole === role ? "border-gold bg-gold/10 shadow-[3px_3px_0_#ff7da8]" : "border-foreground/50 bg-[#171a20]"}`}><p className="font-black">{role.toUpperCase()}</p><p className="mt-1 text-xs text-muted">{remaining} left</p></button>; })}</div><p className="field-label mt-6">Tap a player</p><div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{names.map((name, index) => <button key={name} disabled={Boolean(assignments[name])} onClick={() => onAssign(name)} className="min-h-20 border-2 border-foreground/50 bg-[#171a20] p-3 text-left disabled:opacity-55"><p className="text-xs font-black text-primary">{String(index + 1).padStart(2, "0")}</p><p className="mt-1 truncate font-black">{name}</p><p className="mt-1 text-xs text-gold">{assignments[name] ?? "Unassigned"}</p></button>)}</div><div className="mt-6 flex flex-col gap-3 border-t-2 border-foreground/40 pt-5 sm:flex-row sm:items-center sm:justify-between"><p className="text-sm text-muted">{assignedCount}/{names.length} cards assigned</p><Button variant="outline" onClick={onClear}>Clear cards</Button><Button disabled={assignedCount !== names.length} onClick={onContinue}>Deal private cards <ArrowRight size={18} /></Button></div></div></section></PassPlayShell>;
 }
 
-function NarratorUnlock({ code, error, onCode, onUnlock }: { code: string; error: string; onCode: (value: string) => void; onUnlock: () => void }) {
-  return <PassPlayShell eyebrow="Narrator return" title="ENTER YOUR PIN." copy="Every player has seen their secret card. Enter the narrator PIN to begin the first night."><section className="panel mx-auto max-w-md p-5 sm:p-8"><label className="field-label" htmlFor="unlock-pin">Narrator PIN</label><Input id="unlock-pin" autoFocus type="password" inputMode="numeric" pattern="[0-9]*" maxLength={12} value={code} onChange={event => onCode(event.target.value)} onKeyDown={event => { if (event.key === "Enter") onUnlock(); }} placeholder="ENTER PIN" />{error && <p className="mt-3 text-sm font-bold text-primary">{error}</p>}<Button size="lg" className="mt-5 w-full" onClick={onUnlock}>Open narrator dashboard <ArrowRight size={18} /></Button></section></PassPlayShell>;
+function NarratorUnlock({ code, error, onCode, onUnlock, onRestart }: { code: string; error: string; onCode: (value: string) => void; onUnlock: () => void; onRestart: () => void }) {
+  return <PassPlayShell eyebrow="Narrator return" title="ENTER YOUR PIN." copy="Every player has seen their secret card. Enter the narrator PIN to begin the first night." onRestart={onRestart}><section className="panel mx-auto max-w-md p-5 sm:p-8"><label className="field-label" htmlFor="unlock-pin">Narrator PIN</label><Input id="unlock-pin" autoFocus type="password" inputMode="numeric" pattern="[0-9]*" maxLength={12} value={code} onChange={event => onCode(event.target.value)} onKeyDown={event => { if (event.key === "Enter") onUnlock(); }} placeholder="ENTER PIN" />{error && <p className="mt-3 text-sm font-bold text-primary">{error}</p>}<Button size="lg" className="mt-5 w-full" onClick={onUnlock}>Open narrator dashboard <ArrowRight size={18} /></Button></section></PassPlayShell>;
 }
 
-function PassPlayShell({ eyebrow, title, copy, children }: { eyebrow: string; title: string; copy: string; children: ReactNode }) {
-  return <div className="glow relative min-h-screen overflow-hidden"><div className="grain pointer-events-none absolute inset-0" /><div className="relative z-10 mx-auto max-w-4xl px-4 pb-12 sm:px-7"><header className="flex items-center justify-between gap-3 border-b-2 border-foreground/40 py-5"><Link href="/" className="flex items-center gap-2.5" aria-label="Nookplay home"><span className="flex h-10 w-10 items-center justify-center border-2 border-foreground bg-primary text-[#16181d] shadow-[3px_3px_0_#ffe16a]"><Moon size={22} fill="currentColor" /></span><span className="display text-[26px] sm:text-[30px]">nookplay<span className="text-primary">.</span></span></Link><Link href="/" className="chip text-xs font-black"><ArrowLeft size={15} /> Room game</Link></header><main className="py-8 sm:py-12"><div className="passplay-active-hero mb-7 text-center sm:mb-10"><p className="eyebrow mb-3">{eyebrow}</p><h1 className="display text-4xl uppercase sm:text-6xl">{title}<span className="text-primary">.</span></h1><p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-muted sm:text-base">{copy}</p></div>{children}</main></div></div>;
+function PassPlayShell({ eyebrow, title, copy, children, onRestart }: { eyebrow: string; title: string; copy: string; children: ReactNode; onRestart: () => void }) {
+  return <div className="glow relative min-h-screen overflow-hidden"><div className="grain pointer-events-none absolute inset-0" /><div className="relative z-10 mx-auto max-w-4xl px-4 pb-12 sm:px-7"><header className="flex items-center justify-between gap-3 border-b-2 border-foreground/40 py-5"><Link href="/" className="flex items-center gap-2.5" aria-label="Nookplay home"><span className="flex h-10 w-10 items-center justify-center border-2 border-foreground bg-primary text-[#16181d] shadow-[3px_3px_0_#ffe16a]"><Moon size={22} fill="currentColor" /></span><span className="display text-[26px] sm:text-[30px]">nookplay<span className="text-primary">.</span></span></Link><div className="flex flex-wrap justify-end gap-2"><Button variant="outline" size="sm" onClick={onRestart}><RotateCcw size={15} /> Restart game</Button><Link href="/" className="chip text-xs font-black"><ArrowLeft size={15} /> Room game</Link></div></header><main className="py-8 sm:py-12"><div className="passplay-active-hero mb-7 text-center sm:mb-10"><p className="eyebrow mb-3">{eyebrow}</p><h1 className="display text-4xl uppercase sm:text-6xl">{title}<span className="text-primary">.</span></h1><p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-muted sm:text-base">{copy}</p></div>{children}</main></div></div>;
 }
 
 function TimerDock({ milliseconds, paused, onToggle, onExtend }: { milliseconds: number; paused: boolean; onToggle: () => void; onExtend: () => void }) {
