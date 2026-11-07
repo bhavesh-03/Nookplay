@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, Check, Eye, EyeOff, HeartPulse, Moon, RotateCcw, Search, Skull, Sun, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { eliminatePassPlayPlayer, livingPassPlayPlayers, passPlayWinner, roleDeck, type PassPlayPlayer, type PassPlayRole } from "@/lib/pass-play";
+import { eliminatePassPlayPlayer, livingPassPlayPlayers, passPlayWinner, roleDeck, roleDeckError, type PassPlayPlayer, type PassPlayRole } from "@/lib/pass-play";
 
 type Role = PassPlayRole;
 type AssignmentRole = Role | string;
@@ -65,7 +65,9 @@ export default function PassPlayPage() {
   const currentAction = actions[nightIndex];
   const dealPlayer = players[dealIndex];
   const customRole = cleanName(customRoleName);
-  const deck = roleDeck({ mafia: roleCounts.mafia, doctor: roleCounts.doctor, detective: roleCounts.detective, playerCount: names.length, customTownCount: customRoleCount });
+  const deckCounts = { mafia: roleCounts.mafia, doctor: roleCounts.doctor, detective: roleCounts.detective, playerCount: names.length, customTownCount: customRoleCount };
+  const deck = roleDeck(deckCounts);
+  const setupError = roleDeckError(deckCounts);
   const fullDeck = deck && [...deck, ...Array<string>(customRoleCount).fill(customRole)];
   const configuredRoleCounts: Record<string, number> = { Mafia: roleCounts.mafia, Doctor: roleCounts.doctor, Detective: roleCounts.detective, Villager: deck?.filter(role => role === "Villager").length ?? 0, ...(customRole && customRoleCount ? { [customRole]: customRoleCount } : {}) };
   const assignmentRoles = Object.keys(configuredRoleCounts).filter(role => configuredRoleCounts[role] > 0);
@@ -305,7 +307,7 @@ export default function PassPlayPage() {
   if (!hydrated) return <div className="glow min-h-screen" />;
 
   if (currentStage === "setup") return <NarratorSetup
-    draftName={draftName} names={names} adminCode={adminCode} roleCounts={roleCounts} assignmentMode={assignmentMode} deck={fullDeck} customRoleName={customRoleName} customRoleCount={customRoleCount}
+    draftName={draftName} names={names} adminCode={adminCode} roleCounts={roleCounts} assignmentMode={assignmentMode} deck={fullDeck} setupError={setupError} customRoleName={customRoleName} customRoleCount={customRoleCount}
     onDraftName={setDraftName} onAddPlayer={addPlayer} onRemovePlayer={name => setNames(current => current.filter(item => item !== name))}
     onAdminCode={value => setAdminCode(value.replace(/\D/g, "").slice(0, 12))}
     onRoleCounts={setRoleCounts} onCustomRoleName={setCustomRoleName} onCustomRoleCount={setCustomRoleCount} onAssignmentMode={setAssignmentMode} onContinue={startRoleSetup}
@@ -364,15 +366,15 @@ function PlayerGrid({ players, selected, onSelect, showRoles }: { players: Playe
 
 type RoleCounts = { mafia: number; doctor: number; detective: number; nightSeconds: number; discussionSeconds: number; votingSeconds: number };
 
-function NarratorSetup({ draftName, names, adminCode, roleCounts, assignmentMode, deck, customRoleName, customRoleCount, onDraftName, onAddPlayer, onRemovePlayer, onAdminCode, onRoleCounts, onCustomRoleName, onCustomRoleCount, onAssignmentMode, onContinue }: {
-  draftName: string; names: string[]; adminCode: string; roleCounts: RoleCounts; assignmentMode: "random" | "manual"; deck: string[] | null; customRoleName: string; customRoleCount: number;
+function NarratorSetup({ draftName, names, adminCode, roleCounts, assignmentMode, deck, setupError, customRoleName, customRoleCount, onDraftName, onAddPlayer, onRemovePlayer, onAdminCode, onRoleCounts, onCustomRoleName, onCustomRoleCount, onAssignmentMode, onContinue }: {
+  draftName: string; names: string[]; adminCode: string; roleCounts: RoleCounts; assignmentMode: "random" | "manual"; deck: string[] | null; setupError: string | null; customRoleName: string; customRoleCount: number;
   onDraftName: (value: string) => void; onAddPlayer: () => void; onRemovePlayer: (name: string) => void; onAdminCode: (value: string) => void;
   onRoleCounts: React.Dispatch<React.SetStateAction<RoleCounts>>; onCustomRoleName: (value: string) => void; onCustomRoleCount: (value: number) => void; onAssignmentMode: (value: "random" | "manual") => void; onContinue: () => void;
 }) {
   const valid = names.length >= 4 && Boolean(deck) && adminCode.length >= 4;
   const setNumber = (key: keyof RoleCounts, value: string, minimum: number, maximum: number) => {
     const parsed = Number(value);
-    onRoleCounts(current => ({ ...current, [key]: Math.min(maximum, Math.max(minimum, Number.isFinite(parsed) ? parsed : minimum)) }));
+    onRoleCounts(current => ({ ...current, [key]: Math.min(maximum, Math.max(minimum, Number.isFinite(parsed) ? Math.trunc(parsed) : minimum)) }));
   };
   const villagers = deck?.filter(role => role === "Villager").length ?? 0;
 
@@ -382,7 +384,7 @@ function NarratorSetup({ draftName, names, adminCode, roleCounts, assignmentMode
       <section className="panel mx-auto max-w-2xl overflow-hidden"><div className="panel-head"><div><p className="eyebrow mb-1">01 / Narrator setup</p><h2 className="display text-2xl sm:text-3xl">BUILD THE TABLE.</h2></div><Users className="text-gold" /></div><div className="space-y-6 p-4 sm:p-7">
         <div><label className="field-label" htmlFor="pass-player-name">Add players</label><div className="flex gap-2"><Input id="pass-player-name" value={draftName} onChange={event => onDraftName(event.target.value.toUpperCase())} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); onAddPlayer(); } }} placeholder="PLAYER NAME" maxLength={22} /><Button onClick={onAddPlayer} disabled={!cleanName(draftName) || names.includes(cleanName(draftName)) || names.length >= 16}>Add <ArrowRight size={16} /></Button></div><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">{names.map((name, index) => <button key={name} onClick={() => onRemovePlayer(name)} className="flex min-w-0 items-center gap-2 border-2 border-foreground/50 bg-[#171a20] p-3 text-left text-sm font-black hover:border-primary"><span className="text-primary">{String(index + 1).padStart(2, "0")}</span><span className="truncate">{name}</span></button>)}</div><p className="mt-3 text-sm text-muted">{names.length ? `${names.length}/16 players · tap a name to remove it.` : "Add 4–16 players to begin."}</p></div>
         <div className="border-y-2 border-foreground/40 py-4"><div><label className="field-label" htmlFor="narrator-pin">Narrator PIN</label><Input id="narrator-pin" type="password" inputMode="numeric" pattern="[0-9]*" minLength={4} maxLength={12} value={adminCode} onChange={event => onAdminCode(event.target.value)} placeholder="4–12 DIGITS" /><p className="mt-2 text-xs leading-5 text-muted">Use this PIN after the private cards to return the phone to narrator control.</p></div></div>
-        <div><p className="field-label">Role cards</p><div className="grid grid-cols-3 gap-2"><NumberSetting label="Mafia" value={roleCounts.mafia} onChange={value => setNumber("mafia", value, 1, Math.max(1, names.length - 1))} /><NumberSetting label="Doctor" value={roleCounts.doctor} onChange={value => setNumber("doctor", value, 0, 1)} /><NumberSetting label="Detective" value={roleCounts.detective} onChange={value => setNumber("detective", value, 0, 1)} /></div><p className={`mt-3 text-sm ${deck ? "text-muted" : "text-primary"}`}>{deck ? `${roleCounts.mafia} Mafia · ${roleCounts.doctor} Doctor · ${roleCounts.detective} Detective · ${villagers} Villagers` : "Keep more Town players than Mafia, with at least one Villager."}</p></div>
+        <div><p className="field-label">Role cards</p><div className="grid grid-cols-3 gap-2"><NumberSetting label="Mafia" value={roleCounts.mafia} onChange={value => setNumber("mafia", value, 1, 16)} /><NumberSetting label="Doctor" value={roleCounts.doctor} onChange={value => setNumber("doctor", value, 0, 1)} /><NumberSetting label="Detective" value={roleCounts.detective} onChange={value => setNumber("detective", value, 0, 1)} /></div><p className={`mt-3 text-sm ${deck ? "text-muted" : "text-primary"}`}>{setupError ?? `${roleCounts.mafia} Mafia · ${roleCounts.doctor} Doctor · ${roleCounts.detective} Detective · ${villagers} Villagers`}</p></div>
         <div><p className="field-label">Role assignment</p><div className="grid grid-cols-2 gap-2"><button onClick={() => onAssignmentMode("random")} className={`border-2 p-3 text-left ${assignmentMode === "random" ? "border-gold bg-gold/10 shadow-[3px_3px_0_#ff7da8]" : "border-foreground/50 bg-[#171a20]"}`}><p className="font-black">SHUFFLE</p><p className="mt-1 text-xs text-muted">Deal random cards</p></button><button onClick={() => onAssignmentMode("manual")} className={`border-2 p-3 text-left ${assignmentMode === "manual" ? "border-gold bg-gold/10 shadow-[3px_3px_0_#ff7da8]" : "border-foreground/50 bg-[#171a20]"}`}><p className="font-black">ASSIGN</p><p className="mt-1 text-xs text-muted">Choose every card</p></button></div></div>
         <div><p className="field-label">Phase timers</p><div className="grid grid-cols-3 gap-2"><NumberSetting label="Night" suffix="sec" value={roleCounts.nightSeconds} onChange={value => setNumber("nightSeconds", value, 30, 1800)} /><NumberSetting label="Talk" suffix="sec" value={roleCounts.discussionSeconds} onChange={value => setNumber("discussionSeconds", value, 30, 1800)} /><NumberSetting label="Vote" suffix="sec" value={roleCounts.votingSeconds} onChange={value => setNumber("votingSeconds", value, 30, 1800)} /></div></div>
         <div className="border-t-2 border-foreground/40 pt-6"><p className="field-label">Custom role card</p><div className="grid gap-2 sm:grid-cols-[1fr_110px]"><Input value={customRoleName} onChange={event => onCustomRoleName(event.target.value.toUpperCase())} placeholder="ROLE NAME, E.G. JOKER" maxLength={22} /><NumberSetting label="Cards" value={customRoleCount} onChange={value => onCustomRoleCount(Math.min(Math.max(Number(value) || 0, 0), names.length))} /></div><p className="mt-3 text-sm leading-6 text-muted">Custom cards are Town by default and have no built-in night action. Your group can use any agreed rule for them.</p></div>
@@ -393,7 +395,10 @@ function NarratorSetup({ draftName, names, adminCode, roleCounts, assignmentMode
 }
 
 function NumberSetting({ label, suffix, value, onChange }: { label: string; suffix?: string; value: number; onChange: (value: string) => void }) {
-  return <label className="border-2 border-foreground/50 bg-[#171a20] p-3"><span className="block text-xs font-black uppercase text-gold">{label}</span><span className="mt-2 flex items-center gap-1"><input className="min-w-0 w-full bg-transparent text-lg font-black outline-none" type="number" inputMode="numeric" value={value} onChange={event => onChange(event.target.value)} /><span className="text-xs text-muted">{suffix}</span></span></label>;
+  const [draft, setDraft] = useState(String(value));
+  useEffect(() => setDraft(String(value)), [value]);
+
+  return <label className="border-2 border-foreground/50 bg-[#171a20] p-3"><span className="block text-xs font-black uppercase text-gold">{label}</span><span className="mt-2 flex items-center gap-1"><input className="min-w-0 w-full bg-transparent text-lg font-black outline-none" type="number" inputMode="numeric" value={draft} onChange={event => { const next = event.target.value; setDraft(next); if (next !== "") onChange(next); }} onBlur={() => setDraft(String(value))} /><span className="text-xs text-muted">{suffix}</span></span></label>;
 }
 
 function ManualRoleAssignment({ names, roleCounts, roles, assignments, selectedRole, onSelectRole, onAssign, onClear, onContinue, onRestart }: { names: string[]; roleCounts: Record<string, number>; roles: string[]; assignments: Record<string, AssignmentRole>; selectedRole: AssignmentRole; onSelectRole: (role: AssignmentRole) => void; onAssign: (name: string) => void; onClear: () => void; onContinue: () => void; onRestart: () => void }) {
